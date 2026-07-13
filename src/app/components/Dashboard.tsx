@@ -1,18 +1,19 @@
 import { StatCard } from './StatCard';
-import { Users, BookOpen, CheckCircle2, GraduationCap, Award, Clock, Video, TrendingUp, Target, Loader2, Play, Star, BarChart3, Calendar, ChevronRight, Flame, Hourglass, Trophy, UserPlus, Plus, FileText, ArrowUpRight, LayoutGrid } from 'lucide-react';
+import { Users, BookOpen, CheckCircle2, GraduationCap, Award, Clock, TrendingUp, Target, Loader2, Play, Star, BarChart3, ChevronRight, Flame, Hourglass, Trophy, UserPlus, Plus, FileText, ArrowUpRight, LayoutGrid } from 'lucide-react';
 import { FilterBar } from './FilterBar';
 import { useState, useEffect } from 'react';
 import { getStudentDashboard, getCourses, getLearningStats } from '../services/courseService';
-import { getAllLiveSessions } from '../services/liveSessionService';
 import { getTrainerDashboard, getAdminDashboard } from '../services/dashboardService';
 import { getStreakStats, recordDailyLogin } from '../services/streakService';
 import { PremiumCard, PremiumHero, PremiumPageShell, PremiumStatCard as PremiumStatCard } from './premium/PremiumPage';
+import { TrainerDashboard } from './dashboard/trainer/TrainerDashboard';
 
 interface DashboardProps {
   userRole: 'admin' | 'trainer' | 'participant';
   onOpenAdminUsers?: () => void;
-  onOpenTrainerDetail?: (detailPage: 'courses' | 'reports' | 'assessments' | 'live-sessions' | 'my-students') => void;
+  onOpenTrainerDetail?: (detailPage: 'courses' | 'reports') => void;
   onNavigate?: (page: string) => void;
+  currentUser?: { name?: string; avatar?: string; role?: string; email?: string };
 }
 
 const roleColors = {
@@ -21,14 +22,12 @@ const roleColors = {
   participant: { primary: '#059669', secondary: '#34d399', bg: '#ecfdf5', name: 'Student' },
 };
 
-export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onNavigate }: DashboardProps) {
+export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onNavigate, currentUser }: DashboardProps) {
   const [activeFilters, setActiveFilters] = useState<any>({});
   const [studentData, setStudentData] = useState<any>(null);
   const [loadingStudent, setLoadingStudent] = useState(false);
   const [trainerCourses, setTrainerCourses] = useState<any[]>([]);
   const [loadingTrainer, setLoadingTrainer] = useState(false);
-  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
-  const [loadingSessions, setLoadingSessions] = useState(false);
   const [trainerDashboardData, setTrainerDashboardData] = useState<any>(null);
   const [loadingTrainerDashboard, setLoadingTrainerDashboard] = useState(false);
   const [adminDashboardData, setAdminDashboardData] = useState<any>(null);
@@ -84,11 +83,6 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
         .catch(() => {})
         .finally(() => setLoadingTrainer(false));
 
-      setLoadingSessions(true);
-      getAllLiveSessions({ upcoming: true })
-        .then(res => { if (res.success && res.data) setUpcomingSessions(res.data.slice(0, 3)); })
-        .catch(() => {})
-        .finally(() => setLoadingSessions(false));
     } else if (userRole === 'admin') {
       setLoadingAdminDashboard(true);
       getAdminDashboard()
@@ -97,6 +91,10 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
         .finally(() => setLoadingAdminDashboard(false));
     }
   }, [userRole]);
+
+  if (userRole === 'trainer') {
+    return <TrainerDashboard currentUser={currentUser} onNavigate={onNavigate} />;
+  }
 
   const ad = adminDashboardData;
   const adminStats = [
@@ -160,10 +158,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
   const td = trainerDashboardData;
   const trainerStats = [
     { detailPage: 'courses' as const, label: 'My Courses', value: loadingTrainerDashboard ? '—' : String(td?.summary?.totalCourses || 0), icon: BookOpen, color: 'blue' as const, trend: '' },
-    { detailPage: 'my-students' as const, label: 'Total Students', value: loadingTrainerDashboard ? '—' : String(td?.summary?.totalStudents || 0), icon: Users, color: 'purple' as const, trend: '' },
     { detailPage: 'reports' as const, label: 'Active Batches', value: '5', icon: GraduationCap, color: 'yellow' as const, trend: '' },
-    { detailPage: 'assessments' as const, label: 'Pending', value: '32', icon: Clock, color: 'pink' as const, trend: '' },
-    { detailPage: 'live-sessions' as const, label: 'Live Sessions', value: String(upcomingSessions.length || 0), icon: Video, color: 'green' as const, trend: '' },
   ];
 
   const s = studentData?.stats;
@@ -185,11 +180,6 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
 
   if ((userRole as string) === 'participant') {
     const participantCourses = studentData?.recentCourses?.slice(0, 3) || [];
-    const timelineSessions = [
-      { title: 'Cooperative Governance Workshop', date: 'May 2', trainer: 'Dr. Rajesh Kumar' },
-      { title: 'Member Engagement Strategies', date: 'May 5', trainer: 'Prof. Anita Sharma' },
-      { title: 'Financial Planning Clinic', date: 'May 7', trainer: 'Dr. Neha Jain' },
-    ];
     const continueCourse = studentData?.recentCourses?.find((c: any) => c.progressPercent > 0 && c.progressPercent < 100);
     const statCards = [
       {
@@ -307,81 +297,46 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
 
         <section className="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr] gap-5">
           <article className="rounded-[20px] border border-slate-200/80 bg-white/90 shadow-[0_18px_38px_-30px_rgba(15,23,42,0.4)] overflow-hidden">
-              <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-md bg-indigo-50 p-2 text-indigo-600">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">My Courses</h3>
-                    <p className="text-xs text-slate-500">Continue where you left off</p>
-                  </div>
-                </div>
-                <button onClick={() => onNavigate?.('courses')} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">View all</button>
-              </header>
-
-              <div className="p-4 space-y-3">
-                {participantCourses.length > 0 ? (
-                  participantCourses.map((course: any, idx: number) => (
-                    <div key={`${course.title}-${idx}`} className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 transition-all hover:-translate-y-1 hover:shadow-md">
-                      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg,#4F46E5,#14B8A6)' }} />
-                      <div className="flex items-center gap-3 pl-4">
-                        <div className="h-12 w-12 shrink-0 rounded-xl bg-gradient-to-br from-indigo-100 to-sky-100 flex items-center justify-center text-indigo-700 text-sm font-bold">
-                          {course.title?.[0] || 'C'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate">{course.title}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">{course.completedLessons}/{course.totalLessons} lessons • <span className="font-medium">{course.trainer || 'Trainer'}</span></p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-semibold text-emerald-800">{course.progressPercent}%</span>
-                          <button onClick={() => onNavigate?.('courses')} className="text-xs text-indigo-600 font-semibold hover:underline">Open</button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full" style={{ width: `${course.progressPercent}%`, background: 'linear-gradient(90deg,#4F46E5,#14B8A6)' }} />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="py-8 text-center text-sm text-slate-500">No courses started yet</p>
-                )}
-              </div>
-          </article>
-
-          <article className="rounded-[20px] border border-slate-200/80 bg-white/90 shadow-[0_18px_38px_-30px_rgba(15,23,42,0.4)] overflow-hidden">
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-md bg-emerald-50 p-2 text-emerald-600">
-                  <Video className="w-5 h-5" />
+                <div className="rounded-md bg-indigo-50 p-2 text-indigo-600">
+                  <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Upcoming Sessions</h3>
-                  <p className="text-xs text-slate-500">Live classes and scheduled events</p>
+                  <h3 className="text-base font-bold text-slate-900">My Courses</h3>
+                  <p className="text-xs text-slate-500">Continue where you left off</p>
                 </div>
               </div>
-              <button onClick={() => onNavigate?.('live-sessions')} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">View all</button>
+              <button onClick={() => onNavigate?.('courses')} className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">View all</button>
             </header>
+
             <div className="p-4 space-y-3">
-              {timelineSessions.map((session, idx) => (
-                <div key={`${session.title}-${idx}`} className="relative rounded-2xl border border-slate-100 bg-white p-3 flex items-center justify-between gap-3 hover:shadow-sm transition">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-50 to-teal-50 flex items-center justify-center text-emerald-700 font-semibold text-sm">
-                      {session.title?.[0] || 'S'}
+              {participantCourses.length > 0 ? (
+                participantCourses.map((course: any, idx: number) => (
+                  <div key={`${course.title}-${idx}`} className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 transition-all hover:-translate-y-1 hover:shadow-md">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ background: 'linear-gradient(180deg,#4F46E5,#14B8A6)' }} />
+                    <div className="flex items-center gap-3 pl-4">
+                      <div className="h-12 w-12 shrink-0 rounded-xl bg-gradient-to-br from-indigo-100 to-sky-100 flex items-center justify-center text-indigo-700 text-sm font-bold">
+                        {course.title?.[0] || 'C'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{course.title}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{course.completedLessons}/{course.totalLessons} lessons <span className="font-medium">{course.trainer || 'Trainer'}</span></p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="rounded-full bg-emerald-100 px-3 py-0.5 text-xs font-semibold text-emerald-800">{course.progressPercent}%</span>
+                        <button onClick={() => onNavigate?.('courses')} className="text-xs text-indigo-600 font-semibold hover:underline">Open</button>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900 truncate">{session.title}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">by {session.trainer}</p>
-                      <p className="text-xs text-slate-400 mt-1">{session.date} • {idx === 0 ? 'Starts soon' : 'Scheduled'}</p>
+
+                    <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+                      <div className="h-2 rounded-full" style={{ width: `${course.progressPercent}%`, background: 'linear-gradient(90deg,#4F46E5,#14B8A6)' }} />
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => onNavigate?.('live-sessions')} className="text-xs font-semibold text-indigo-600 hover:underline">Details</button>
-                    <button className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">Join</button>
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="py-8 text-center text-sm text-slate-500">No courses started yet</p>
+              )}
             </div>
           </article>
         </section>
@@ -391,9 +346,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               ['Browse Courses', BookOpen, 'Explore courses', 'courses'],
-              ['Take Assessment', CheckCircle2, 'Test your knowledge', 'assessments'],
               ['My Certificates', Award, 'View your certificates', 'certificates'],
-              ['Join Session', Video, 'Check schedule', 'live-sessions'],
             ].map(([title, Icon, subtitle, page]) => (
               <button
                 key={title as string}
@@ -651,9 +604,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
               ['Add Users', UserPlus, 'bulk-import', 'border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/20', '#6366f1', 'Bulk CSV Import & Sync'],
               ['Create Course', Plus, 'courses', 'border-blue-100 hover:border-blue-300 hover:bg-blue-50/20', '#3b82f6', 'Author modules & sections'],
               ['New Batch', GraduationCap, 'batches', 'border-green-100 hover:border-green-300 hover:bg-green-50/20', '#10b981', 'Cohort assignments'],
-              ['Create Test', FileText, 'courses', 'border-yellow-100 hover:border-yellow-300 hover:bg-yellow-50/20', '#f59e0b', 'Grade & assessment files'],
               ['View Reports', BarChart3, 'reports', 'border-purple-100 hover:border-purple-300 hover:bg-purple-50/20', '#8b5cf6', 'Growth & query stats'],
-              ['Go Live', Video, 'live-sessions', 'border-pink-100 hover:border-pink-300 hover:bg-pink-50/20', '#ec4899', 'Instant classroom streams'],
             ].map(([label, Icon, target, hoverStyle, iconColor, desc]) => (
               <button
                 key={label as string}
@@ -945,124 +896,23 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
     const trainerName = trainerDashboardData?.trainer?.name || trainerDashboardData?.name || 'Trainer';
     const quickActions = [
       { label: 'Create Course', detail: `${td?.summary?.totalCourses || 0} courses`, icon: BookOpen, page: 'courses', tone: 'from-indigo-50 via-blue-50 to-white', accent: 'text-indigo-600' },
-      { label: 'Grade Assessments', detail: 'Review submissions', icon: CheckCircle2, page: 'assessments', tone: 'from-emerald-50 via-teal-50 to-white', accent: 'text-emerald-600' },
-      { label: 'Schedule Session', detail: `${upcomingSessions.length} upcoming`, icon: Video, page: 'live-sessions', tone: 'from-violet-50 via-purple-50 to-white', accent: 'text-violet-600' },
-      { label: 'View Students', detail: `${td?.summary?.totalStudents || 0} learners`, icon: Users, page: 'my-students', tone: 'from-pink-50 via-rose-50 to-white', accent: 'text-pink-600' },
     ];
 
     return (
       <PremiumPageShell>
         <PremiumHero
           title="Trainer Dashboard"
-          subtitle={`Welcome back, ${trainerName}. Manage classrooms, learning progress, live sessions, and learner support from one focused command center.`}
+          subtitle={`Welcome back, ${trainerName}. Manage classrooms, learning progress, and learner support from one focused command center.`}
           eyebrow="Trainer command center"
           icon={GraduationCap}
-          action={(
-            <button
-              onClick={() => onNavigate?.('live-sessions')}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-16px_rgba(79,70,229,.9)] transition-all hover:-translate-y-0.5 hover:shadow-lg"
-            >
-              <Video className="h-4 w-4" />
-              Start Live Session
-            </button>
-          )}
         />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <PremiumStatCard label="My Courses" value={loadingTrainerDashboard ? '...' : String(td?.summary?.totalCourses || 0)} detail="Owned programs" icon={BookOpen} tone="from-indigo-50 via-blue-50 to-white" accent="text-indigo-600" />
-          <PremiumStatCard label="Total Students" value={loadingTrainerDashboard ? '...' : String(td?.summary?.totalStudents || 0)} detail="Learners enrolled" icon={Users} tone="from-violet-50 via-purple-50 to-white" accent="text-violet-600" />
           <PremiumStatCard label="Active Batches" value="5" detail="Running cohorts" icon={GraduationCap} tone="from-amber-50 via-yellow-50 to-white" accent="text-amber-600" />
-          <PremiumStatCard label="Pending" value="32" detail="Review queue" icon={Clock} tone="from-pink-50 via-rose-50 to-white" accent="text-pink-600" />
-          <PremiumStatCard label="Live Sessions" value={upcomingSessions.length || 0} detail="Scheduled" icon={Video} tone="from-emerald-50 via-teal-50 to-white" accent="text-emerald-600" />
         </div>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <PremiumCard className="overflow-hidden">
-            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  <BookOpen className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-950">My Active Courses</h3>
-                  <p className="text-xs font-medium text-slate-500">Progress and enrollment snapshot</p>
-                </div>
-              </div>
-              <button onClick={() => onNavigate?.('courses')} className="text-sm font-bold text-indigo-600 hover:text-indigo-700">View all</button>
-            </header>
-            <div className="space-y-3 p-5">
-              {loadingTrainer ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-indigo-600" /></div>
-              ) : trainerCourses.length > 0 ? (
-                trainerCourses.map((course: any, idx: number) => {
-                  const progress = course.statistics?.avgProgress || 0;
-                  return (
-                    <button key={course._id || idx} onClick={() => onNavigate?.('courses')} className="group w-full rounded-2xl border border-slate-100 bg-white p-4 text-left transition-all hover:-translate-y-1 hover:border-indigo-200 hover:shadow-md">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-sky-100 text-base font-black text-indigo-700">
-                          {course.title?.[0] || 'C'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-black text-slate-950">{course.title}</p>
-                          <p className="mt-1 text-xs font-medium text-slate-500">{course.currentEnrollments || 0} students enrolled</p>
-                        </div>
-                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-black text-indigo-700">{progress}%</span>
-                      </div>
-                      <div className="mt-4 h-2 rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-gradient-to-r from-indigo-600 to-teal-500" style={{ width: `${Math.min(100, progress)}%` }} />
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="py-12 text-center text-slate-500">
-                  <BookOpen className="mx-auto mb-3 h-10 w-10 text-indigo-200" />
-                  <p className="font-bold">No active courses found</p>
-                  <p className="mt-1 text-sm">Create a course to get started.</p>
-                </div>
-              )}
-            </div>
-          </PremiumCard>
-
-          <PremiumCard className="overflow-hidden">
-            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
-                  <Video className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-950">Upcoming Sessions</h3>
-                  <p className="text-xs font-medium text-slate-500">Live classroom schedule</p>
-                </div>
-              </div>
-              <button onClick={() => onNavigate?.('live-sessions')} className="text-sm font-bold text-indigo-600 hover:text-indigo-700">Manage</button>
-            </header>
-            <div className="space-y-3 p-5">
-              {loadingSessions ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-indigo-600" /></div>
-              ) : upcomingSessions.length > 0 ? (
-                upcomingSessions.map((session: any, idx: number) => (
-                  <button key={session._id || idx} onClick={() => onNavigate?.('live-sessions')} className="w-full rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-teal-50/40 p-4 text-left transition-all hover:-translate-y-1 hover:border-teal-200 hover:shadow-md">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-950">{session.title}</p>
-                        <p className="mt-1 text-xs font-medium text-slate-500">{session.enrolledCount || 0} enrolled</p>
-                      </div>
-                      <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-black text-teal-700">
-                        {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="py-12 text-center text-slate-500">
-                  <Calendar className="mx-auto mb-3 h-10 w-10 text-teal-200" />
-                  <p className="font-bold">No sessions scheduled</p>
-                  <p className="mt-1 text-sm">Plan your next live class.</p>
-                </div>
-              )}
-            </div>
-          </PremiumCard>
+        <div className="grid grid-cols-1 gap-6">
         </div>
 
         <PremiumCard className="p-5">
@@ -1171,15 +1021,6 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
               <span className="text-xs font-medium text-gray-700">New Batch</span>
             </button>
             <button
-              onClick={() => setActivePage('assessments')}
-              className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all"
-            >
-              <div className="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center">
-                <FileText className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-gray-700">Create Test</span>
-            </button>
-            <button
               onClick={() => setActivePage('analytics')}
               className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all"
             >
@@ -1187,15 +1028,6 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                 <BarChart3 className="w-5 h-5" />
               </div>
               <span className="text-xs font-medium text-gray-700">View Reports</span>
-            </button>
-            <button
-              onClick={() => setActivePage('live-sessions')}
-              className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all"
-            >
-              <div className="w-10 h-10 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center">
-                <Video className="w-5 h-5" />
-              </div>
-              <span className="text-xs font-medium text-gray-700">Go Live</span>
             </button>
           </div>
         </div>
@@ -1256,203 +1088,26 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                 <div className="text-center py-8 text-gray-500">No recent registrations</div>
               )
             ) : userRole === 'trainer' ? (
-              loadingTrainer ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                </div>
-              ) : trainerCourses.length > 0 ? (
+              trainerCourses.length > 0 ? (
                 trainerCourses.map((course: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => onNavigate?.('courses')}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 font-medium">
-                      {course.title?.[0]}
+                  <button key={course._id || idx} onClick={() => onNavigate?.('courses')} className="w-full p-3 rounded-xl bg-gray-50 hover:bg-gray-100 text-left transition-all">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-gray-900 text-sm truncate">{course.title}</span>
+                      <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{course.currentEnrollments || 0} students</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{course.title}</p>
-                      <p className="text-sm text-gray-500">{course.currentEnrollments || 0} students</p>
-                    </div>
-                    <span className="text-lg font-semibold" style={{ color: colors.primary }}>
-                      {course.statistics?.avgProgress || 0}%
-                    </span>
-                  </div>
+                    <p className="text-sm text-gray-500">Course progress and enrollment overview</p>
+                  </button>
                 ))
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  No active courses found. Create a course to get started!
-                </div>
+                <div className="text-center py-8 text-gray-500">No active courses found</div>
               )
             ) : (
-              loadingStudent ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                </div>
-              ) : studentData?.recentCourses?.length > 0 ? (
-                studentData.recentCourses.slice(0, 4).map((course: any, idx: number) => (
-                  <div key={idx} className="p-3 rounded-xl hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 font-medium">
-                        {course.title?.[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{course.title}</p>
-                        <p className="text-xs text-gray-500">{course.completedLessons}/{course.totalLessons} lessons</p>
-                      </div>
-                    </div>
-                    <div className="ml-13">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-gray-500">Progress</span>
-                        <span className="font-medium" style={{ color: colors.primary }}>{course.progressPercent}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${course.progressPercent}%`, backgroundColor: colors.primary }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                [
-                  { title: 'Cooperative Management Fundamentals', progress: 75 },
-                  { title: 'Digital Marketing for Cooperatives', progress: 45 },
-                  { title: 'Financial Literacy & Accounting', progress: 90 },
-                ].map((course, idx) => (
-                  <div key={idx} className="p-3 rounded-xl hover:bg-gray-50">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 font-medium">
-                        {course.title[0]}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{course.title}</p>
-                      </div>
-                    </div>
-                    <div className="ml-13">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-gray-500">Progress</span>
-                        <span className="font-medium" style={{ color: colors.primary }}>{course.progress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div
-                          className="h-2 rounded-full"
-                          style={{ width: `${course.progress}%`, backgroundColor: colors.primary }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Right Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-                {userRole === 'admin' ? <Star className="w-5 h-5 text-teal-600" /> :
-                 userRole === 'trainer' ? <Video className="w-5 h-5 text-teal-600" /> :
-                 <Calendar className="w-5 h-5 text-teal-600" />}
+              <div className="text-center py-8 text-gray-500">
+                <BookOpen className="w-10 h-10 mx-auto mb-3 text-teal-200" />
+                <p className="font-medium text-gray-900">Keep learning</p>
+                <p className="text-sm text-gray-500 mt-1">Open your courses to continue progress.</p>
               </div>
-              <h3 className="font-semibold text-gray-900">
-                {userRole === 'admin' ? 'Recent Ratings' :
-                 userRole === 'trainer' ? 'Upcoming Sessions' :
-                 'Upcoming Sessions'}
-              </h3>
-            </div>
-            <button className="text-gray-400 hover:text-gray-600">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="p-5 space-y-3">
-            {userRole === 'admin' ? (
-              loadingAdminDashboard ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                </div>
-              ) : ad?.recentRatings?.length > 0 ? (
-                ad.recentRatings.slice(0, 4).map((rating: any, idx: number) => (
-                  <div key={idx} className="p-3 rounded-xl bg-gray-50">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center text-white text-xs">
-                          {rating.student?.firstName?.[0]}
-                        </div>
-                        <span className="font-medium text-gray-900 text-sm">{rating.student?.firstName} {rating.student?.lastName}</span>
-                      </div>
-                      <div className="flex gap-0.5">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className={`w-3.5 h-3.5 ${i < rating.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-500 truncate">{rating.course?.title}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500">No ratings yet</div>
-              )
-            ) : userRole === 'trainer' ? (
-              loadingSessions ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                </div>
-              ) : upcomingSessions.length > 0 ? (
-                upcomingSessions.map((session: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => onNavigate?.('live-sessions')}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-gray-900 text-sm truncate">{session.title}</span>
-                      <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
-                        {new Date(session.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm text-gray-500">{session.enrolledCount || 0} enrolled</span>
-                      <button className="px-3 py-1 bg-teal-500 text-white rounded-lg text-xs font-medium hover:bg-teal-600">Join</button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                [
-                  { title: 'Cooperative Governance Workshop', date: 'May 2', students: 45 },
-                  { title: 'Financial Planning Session', date: 'May 5', students: 32 },
-                ].map((session, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-gray-50">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-gray-900 text-sm">{session.title}</span>
-                      <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{session.date}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm text-gray-500">{session.students} students</span>
-                      <button className="px-3 py-1 bg-teal-500 text-white rounded-lg text-xs">Join</button>
-                    </div>
-                  </div>
-                ))
-              )
-            ) : (
-              [
-                { title: 'Cooperative Governance Workshop', date: 'May 2', trainer: 'Dr. Rajesh Kumar' },
-                { title: 'Member Engagement Strategies', date: 'May 5', trainer: 'Prof. Anita Sharma' },
-              ].map((session, idx) => (
-                <div key={idx} className="p-3 rounded-xl bg-gray-50">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-medium text-gray-900 text-sm">{session.title}</span>
-                    <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{session.date}</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">by {session.trainer}</p>
-                </div>
-              ))
-            )}
-          </div>
+            )}          </div>
         </div>
       </div>
 
@@ -1490,21 +1145,6 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                 <p className="font-medium text-gray-900 text-sm">Create Course</p>
                 <p className="text-xs text-gray-500 mt-1">{td?.summary?.totalCourses || 0} courses</p>
               </button>
-              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onOpenTrainerDetail?.('assessments')}>
-                <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                <p className="font-medium text-gray-900 text-sm">Grade Assessments</p>
-                <p className="text-xs text-gray-500 mt-1">Check pending</p>
-              </button>
-              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('live-sessions')}>
-                <Video className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                <p className="font-medium text-gray-900 text-sm">Schedule Session</p>
-                <p className="text-xs text-gray-500 mt-1">{upcomingSessions.length} upcoming</p>
-              </button>
-              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onOpenTrainerDetail?.('my-students')}>
-                <Users className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                <p className="font-medium text-gray-900 text-sm">View Students</p>
-                <p className="text-xs text-gray-500 mt-1">{td?.summary?.totalStudents || 0} total</p>
-              </button>
             </>
           ) : (
             <>
@@ -1513,20 +1153,10 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                 <p className="font-medium text-gray-900 text-sm">Browse Courses</p>
                 <p className="text-xs text-gray-500 mt-1">{s?.total || 0} enrolled</p>
               </button>
-              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('assessments')}>
-                <CheckCircle2 className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                <p className="font-medium text-gray-900 text-sm">Take Assessment</p>
-                <p className="text-xs text-gray-500 mt-1">{s?.inProgress || 0} in progress</p>
-              </button>
               <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('certificates')}>
                 <Award className="w-6 h-6 mx-auto mb-2 text-gray-600" />
                 <p className="font-medium text-gray-900 text-sm">My Certificates</p>
                 <p className="text-xs text-gray-500 mt-1">{s?.completed || 0} earned</p>
-              </button>
-              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('live-sessions')}>
-                <Video className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                <p className="font-medium text-gray-900 text-sm">Join Session</p>
-                <p className="text-xs text-gray-500 mt-1">Check schedule</p>
               </button>
             </>
           )}

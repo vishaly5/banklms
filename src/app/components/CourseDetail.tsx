@@ -247,10 +247,6 @@ export function CourseDetail({ courseId, onBack }: CourseDetailProps) {
                 <span className="text-sm text-gray-600">Time Spent</span>
                 <span className="font-semibold text-gray-900">12.5 hours</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Next Assessment</span>
-                <span className="font-semibold text-indigo-600">Available</span>
-              </div>
             </div>
           </div>
 

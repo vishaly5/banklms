@@ -32,10 +32,6 @@ const studentDailyActivitySummarySchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  assessmentsCompleted: {
-    type: Number,
-    default: 0,
-  },
   assignmentsSubmitted: {
     type: Number,
     default: 0,

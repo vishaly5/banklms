@@ -9,10 +9,8 @@ import {
   CalendarCheck,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
   FileBadge,
   FileText,
-  FolderOpen,
   GraduationCap,
   Languages,
   MapPin,
@@ -27,7 +25,7 @@ import {
   Users,
 } from 'lucide-react';
 
-const navItems = ['Home', 'Courses', 'AI Tools', 'Live Classes', 'Assessments', 'Resources', 'About Us'];
+const navItems = ['Home', 'Courses', 'AI Tools', 'Certificates', 'Resources', 'About Us'];
 
 const trustItems = [
   { icon: ShieldCheck, label: 'Government', detail: 'Initiative', color: '#f97316' },
@@ -49,18 +47,13 @@ const features = [
   { icon: Bot, title: 'AI Tutor', copy: 'Get instant answers, explanations and personalized guidance.', color: '#16a34a' },
   { icon: FileText, title: 'AI Notes', copy: 'Generate smart notes from lessons in one click.', color: '#4f46e5' },
   { icon: Brain, title: 'Flashcards', copy: 'AI-generated flashcards to help you revise better.', color: '#ec4899' },
-  { icon: ClipboardCheck, title: 'Assessments', copy: 'Take quizzes, tests and track performance.', color: '#f97316' },
-  { icon: MonitorPlay, title: 'Live Classes', copy: 'Interactive live sessions with experts via Zoom/Webex.', color: '#7c3aed' },
   { icon: FileBadge, title: 'Certificates', copy: 'Earn verified certificates with QR code verification.', color: '#0d9488' },
   { icon: BarChart3, title: 'Analytics', copy: 'Track your progress with advanced analytics and reports.', color: '#2584d6' },
-  { icon: FolderOpen, title: 'Media Library', copy: 'Access videos, PDFs, audio and learning resources.', color: '#f59e0b' },
 ];
 
 const assistantTools = [
-  { icon: Search, title: 'Smart Search', copy: 'Find anything instantly' },
   { icon: FileText, title: 'Summarize', copy: 'Get key points quickly' },
   { icon: BookOpen, title: 'Generate Notes', copy: 'Create notes in seconds' },
-  { icon: ClipboardCheck, title: 'Practice Quiz', copy: 'Test your knowledge' },
 ];
 
 const impactStats = [
@@ -75,7 +68,6 @@ const journeySteps = [
   { icon: Search, title: 'Explore', copy: 'Browse courses and choose what you love' },
   { icon: BookOpen, title: 'Enroll', copy: 'Enroll in the course that interests you' },
   { icon: GraduationCap, title: 'Learn', copy: 'Access content and learn at your pace' },
-  { icon: ClipboardCheck, title: 'Assess', copy: 'Take tests and track progress' },
   { icon: Award, title: 'Get Certified', copy: 'Earn certificates and achieve more' },
 ];
 

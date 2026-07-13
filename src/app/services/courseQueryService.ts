@@ -43,7 +43,7 @@ export interface CourseQuery {
     email: string;
   };
   question: string;
-  category: 'course-content' | 'lesson' | 'assessment' | 'technical' | 'general';
+  category: 'course-content' | 'lesson' | 'technical' | 'general';
   lessonReference?: string;
   status: 'pending' | 'answered' | 'closed';
   replies: Array<{

@@ -11,7 +11,7 @@ const forumPostSchema = new mongoose.Schema(
     category: {
       type: String,
       default: 'general',
-      enum: ['general', 'course', 'lesson', 'assessment', 'technical', 'resource'],
+      enum: ['general', 'course', 'lesson', 'technical', 'resource'],
     },
     tags: [{ type: String, trim: true, lowercase: true }],
 
@@ -33,4 +33,3 @@ forumPostSchema.index({ author: 1, createdAt: -1 });
 
 const ForumPost = mongoose.model('ForumPost', forumPostSchema);
 export default ForumPost;
-

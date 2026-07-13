@@ -24,7 +24,7 @@ const courseQuerySchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['course-content', 'lesson', 'assessment', 'technical', 'general'],
+    enum: ['course-content', 'lesson', 'technical', 'general'],
     default: 'general'
   },
   lessonReference: {

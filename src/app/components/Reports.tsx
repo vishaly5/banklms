@@ -40,11 +40,6 @@ export function Reports({ userRole }: ReportsProps) {
       { course: 'Legal Compliance for Cooperatives', modules: 8, completed: 2, progress: 20, lastAccessed: '1 week ago', grade: '-' },
     ];
 
-    const assessmentData = [
-      { assessment: 'Module 1-4 Final Assessment', course: 'Cooperative Management', score: 88, status: 'Passed', date: 'Apr 20, 2026' },
-      { assessment: 'Midterm Exam', course: 'Financial Literacy', score: 92, status: 'Passed', date: 'Apr 22, 2026' },
-    ];
-
     // Helper SVG for sparkline
     const SparklineSVG = ({ trend }: { trend: string }) => (
       <svg className="w-12 h-6" viewBox="0 0 40 20" preserveAspectRatio="none">
@@ -118,7 +113,7 @@ export function Reports({ userRole }: ReportsProps) {
               <span className="text-xs font-semibold text-slate-700">Learning in Progress</span>
             </div>
             <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mb-2">My Learning Progress</h2>
-            <p className="text-sm md:text-base text-slate-600 max-w-2xl">Track your course completion, assessment scores, and achievement milestones across all enrolled programs.</p>
+            <p className="text-sm md:text-base text-slate-600 max-w-2xl">Track your course completion and achievement milestones across all enrolled programs.</p>
           </div>
         </section>
 
@@ -220,42 +215,6 @@ export function Reports({ userRole }: ReportsProps) {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Assessment Performance Section */}
-        <section className="rounded-[22px] border border-slate-200/80 bg-white/90 p-5 md:p-6 shadow-[0_18px_38px_-30px_rgba(15,23,42,0.4)]">
-          <h3 className="text-base font-bold text-slate-900 mb-5 flex items-center gap-2">
-            <Award className="w-4 h-4 text-emerald-600" />
-            Assessment Performance
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {assessmentData.map((item, idx) => (
-              <article
-                key={idx}
-                className="group relative overflow-hidden rounded-[16px] border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-teal-50/40 p-4 shadow-[0_6px_20px_-30px_rgba(16,185,129,0.15)] transition-all duration-300 hover:shadow-[0_12px_28px_-28px_rgba(16,185,129,0.25)] hover:border-emerald-300/80"
-              >
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
-                <div className="relative z-10">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-slate-900 text-sm">{item.assessment}</h4>
-                      <p className="text-xs text-slate-600 mt-1">{item.course}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0 ml-3">
-                      <p className="text-2xl font-black text-emerald-600">{item.score}%</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 mt-4">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-700 text-xs font-semibold">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      {item.status}
-                    </span>
-                    <span className="text-xs text-slate-600">{item.date}</span>
-                  </div>
-                </div>
-              </article>
             ))}
           </div>
         </section>
@@ -478,7 +437,7 @@ export function Reports({ userRole }: ReportsProps) {
     {
       id: 2,
       name: 'Participant Performance Report',
-      description: 'Detailed analysis of learner assessment scores',
+      description: 'Detailed analysis of learner progress',
       icon: '📈',
       lastGenerated: '2026-04-27',
     },
@@ -509,14 +468,6 @@ export function Reports({ userRole }: ReportsProps) {
     },
     {
       id: 2,
-      title: 'Assessment Performance - Batch A',
-      type: 'Performance',
-      generatedBy: 'Dr. Rajesh Kumar',
-      date: '2026-04-27',
-      records: 145,
-    },
-    {
-      id: 3,
       title: 'Live Sessions Attendance - Week 17',
       type: 'Attendance',
       generatedBy: 'Prof. Anita Sharma',

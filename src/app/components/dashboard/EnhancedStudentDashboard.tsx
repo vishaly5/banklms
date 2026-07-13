@@ -7,8 +7,6 @@ import {
   TrendingUp,
   Calendar,
   Bell,
-  Video,
-  FileText,
   BarChart3,
   RefreshCw,
   CheckCircle2,
@@ -126,24 +124,7 @@ export function EnhancedStudentDashboard() {
         </div>
 
         {/* Secondary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <DashboardCard
-            title="Assessments"
-            value={`${stats?.completedAssessments || 0}/${stats?.totalAssessments || 0}`}
-            icon={FileText}
-            iconColor="text-indigo-600"
-            iconBgColor="bg-indigo-100"
-            subtitle={`${stats?.averageScore || 0}% avg score`}
-          />
-          <DashboardCard
-            title="Live Sessions"
-            value={stats?.upcomingLiveSessions || 0}
-            icon={Video}
-            iconColor="text-pink-600"
-            iconBgColor="bg-pink-100"
-            subtitle="Upcoming this week"
-            onClick={() => navigate('/dashboard/live-sessions')}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <DashboardCard
             title="Study Hours"
             value={stats?.totalStudyHours || 0}
@@ -332,7 +313,6 @@ function ActivityItem({ activity }: { activity: any }) {
   const getIcon = () => {
     switch (activity.type) {
       case 'course_enrolled': return <BookOpen className="w-5 h-5 text-blue-600" />;
-      case 'assessment_completed': return <FileText className="w-5 h-5 text-green-600" />;
       case 'certificate_earned': return <Award className="w-5 h-5 text-purple-600" />;
       case 'session_attended': return <Video className="w-5 h-5 text-pink-600" />;
       default: return <Bell className="w-5 h-5 text-gray-600" />;

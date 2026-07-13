@@ -199,7 +199,6 @@ export function Notifications() {
 
   const categoryLabel: Record<NotificationType['category'], string> = {
     course: 'Course Update',
-    assessment: 'Assignment',
     certificate: 'Report',
     session: 'Message',
     payment: 'Payment',
@@ -208,7 +207,6 @@ export function Notifications() {
 
   const categoryIcon: Record<NotificationType['category'], React.ElementType> = {
     course: GraduationCap,
-    assessment: ClipboardList,
     certificate: FileText,
     session: MessageSquare,
     payment: CheckCircle,
@@ -217,7 +215,6 @@ export function Notifications() {
 
   const categoryTone: Record<NotificationType['category'], string> = {
     course: 'bg-blue-50 text-blue-700 border-blue-100',
-    assessment: 'bg-violet-50 text-violet-700 border-violet-100',
     certificate: 'bg-emerald-50 text-emerald-700 border-emerald-100',
     session: 'bg-sky-50 text-sky-700 border-sky-100',
     payment: 'bg-amber-50 text-amber-700 border-amber-100',

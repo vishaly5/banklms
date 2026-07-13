@@ -130,13 +130,6 @@ const permissions = {
   'content:update': ['administrator', 'trainer'],
   'content:delete': ['administrator', 'trainer'],
   
-  // Assessment Management
-  'assessments:create': ['administrator', 'trainer'],
-  'assessments:update': ['administrator', 'trainer'],
-  'assessments:delete': ['administrator', 'trainer'],
-  'assessments:evaluate': ['administrator', 'trainer'],
-  'assessments:attempt': ['student'],
-  
   // Certificate Management
   'certificates:generate': ['administrator'],
   'certificates:download': ['student'],

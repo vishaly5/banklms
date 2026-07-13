@@ -24,7 +24,6 @@ interface UserSummary {
   department?: { _id: string; name: string };
   enrolledCourses: number;
   completedCourses: number;
-  assessmentsCompleted: number;
   certificatesDownloaded: number;
   createdAt: string;
   lastLogin?: string;
@@ -92,7 +91,6 @@ function UserListPage({ onBackToDashboard, onOpenUser }: { onBackToDashboard: ()
           department: u.department,
           enrolledCourses: u.enrolledCourses?.length || u.totalCoursesEnrolled || 0,
           completedCourses: u.completedCourses || 0,
-          assessmentsCompleted: u.assessmentsCompleted || 0,
           certificatesDownloaded: u.certificatesDownloaded || 0,
           createdAt: u.createdAt || new Date().toISOString(),
           lastLogin: u.lastLogin,
@@ -579,7 +577,7 @@ function UserDetailPage({ userId, onBackToList }: { userId: string; onBackToList
   const stats = [
     { label: 'Enrolled Courses', value: user.enrolledCourses?.length || user.totalCoursesEnrolled || 0, icon: BookOpen },
     { label: 'Completed Courses', value: user.completedCourses || 0, icon: CheckCircle2 },
-    { label: 'Assessments', value: user.assessmentsCompleted || 0, icon: Award },
+    { label: 'Certificates', value: user.certificatesDownloaded || 0, icon: Award },
     { label: 'Learning Days', value: user.learningDays || 0, icon: CalendarDays },
   ];
 

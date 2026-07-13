@@ -110,13 +110,10 @@ httpServer.listen(PORT, async () => {
     const authRoutes = (await import('./src/routes/auth.routes.js')).default;
     const userRoutes = (await import('./src/routes/user.routes.js')).default;
     const courseRoutes = (await import('./src/routes/course.routes.js')).default;
-    const assessmentRoutes = (await import('./src/routes/assessment.routes.js')).default;
     const paymentRoutes = (await import('./src/routes/payment.routes.js')).default;
     const certificateRoutes = (await import('./src/routes/certificate.routes.js')).default;
     const dashboardRoutes = (await import('./src/routes/dashboard.routes.js')).default;
     const qmsRoutes = (await import('./src/routes/qms.routes.js')).default;
-    const mediaRoutes = (await import('./src/routes/media.routes.js')).default;
-    const liveSessionRoutes = (await import('./src/routes/liveSession.routes.js')).default;
     const reportRoutes = (await import('./src/routes/report.routes.js')).default;
     const notificationRoutes = (await import('./src/routes/notification.routes.js')).default;
     
@@ -126,13 +123,10 @@ httpServer.listen(PORT, async () => {
     app.use(`${API_PREFIX}/auth`, authRoutes);
     app.use(`${API_PREFIX}/users`, userRoutes);
     app.use(`${API_PREFIX}/courses`, courseRoutes);
-    app.use(`${API_PREFIX}/assessments`, assessmentRoutes);
     app.use(`${API_PREFIX}/payments`, paymentRoutes);
     app.use(`${API_PREFIX}/certificates`, certificateRoutes);
     app.use(`${API_PREFIX}/dashboard`, dashboardRoutes);
     app.use(`${API_PREFIX}/qms`, qmsRoutes);
-    app.use(`${API_PREFIX}/media`, mediaRoutes);
-    app.use(`${API_PREFIX}/live-sessions`, liveSessionRoutes);
     app.use(`${API_PREFIX}/reports`, reportRoutes);
     app.use(`${API_PREFIX}/notifications`, notificationRoutes);
     

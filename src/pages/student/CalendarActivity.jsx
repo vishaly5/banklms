@@ -5,7 +5,7 @@ export default function CalendarActivity() {
     <ActivityTrackerShell
       mode="student"
       title="Learning Activity Tracker"
-      subtitle="Review your study rhythm, completed lessons, assessments, AI tutor usage, and day-wise learning history."
+      subtitle="Review your study rhythm, completed lessons, AI tutor usage, and day-wise learning history."
     />
   );
 }

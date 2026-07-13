@@ -127,16 +127,6 @@ export const uploadRateLimiter = rateLimit({
   store: new RedisStore({ prefix: 'rl:upload:' })
 });
 
-// Assessment attempt rate limiter
-export const assessmentRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute (for submitting answers)
-  message: 'Too many requests, please slow down',
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: new RedisStore({ prefix: 'rl:assessment:' })
-});
-
 // AI routes rate limiter
 export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -153,6 +143,5 @@ export default {
   otpRateLimiter,
   paymentRateLimiter,
   uploadRateLimiter,
-  assessmentRateLimiter,
   aiRateLimiter
 };

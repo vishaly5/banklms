@@ -12,7 +12,6 @@ import {
   Download,
   ExternalLink,
   Eye,
-  FileText,
   GraduationCap,
   Image,
   Link,
@@ -484,11 +483,9 @@ export function CourseReviewCenter() {
   const checklist = useMemo(() => {
     const lessons = lessonCount(selectedCourse);
     const resources = resourceCount(selectedCourse);
-    const quizzes = quizCount(selectedCourse);
     return [
       { label: 'Course structure is complete', status: selectedCourse?.title && selectedCourse?.description && lessons > 0 ? 'done' : 'warning' },
       { label: 'Lessons have content', status: lessons > 0 ? 'done' : 'warning' },
-      { label: 'Assessment added', status: quizzes > 0 ? 'done' : 'warning' },
       { label: 'Preview video available', status: resources > 0 ? 'done' : 'pending' },
       { label: 'Copyright compliance verified', status: 'pending' },
     ];
@@ -703,7 +700,6 @@ export function CourseReviewCenter() {
                   {[
                     ['Lessons', lessonCount(selectedCourse)],
                     ['Duration', totalDuration(selectedCourse)],
-                    ['Quizzes', quizCount(selectedCourse)],
                     ['Resources', resourceCount(selectedCourse)],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">

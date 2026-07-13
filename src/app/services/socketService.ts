@@ -49,8 +49,6 @@ class SocketService {
       'media_updated',
       'new_live_session',
       'live_session_updated',
-      'new_assessment',
-      'assessment_updated',
       'new_announcement',
       'question_answered',
       'certificate_ready',

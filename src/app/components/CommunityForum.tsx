@@ -42,7 +42,7 @@ type ReplyNode = {
   children: ReplyNode[];
 };
 
-const categories: ForumCategory[] = ['general', 'course', 'lesson', 'assessment', 'technical', 'resource'];
+const categories: ForumCategory[] = ['general', 'course', 'lesson', 'technical', 'resource'];
 
 const nameOf = (u: ForumPost['author'] | ForumReply['author'] | undefined | null) => {
   if (!u) return 'Unknown';
@@ -813,4 +813,3 @@ function ReplyNodeView({
     </div>
   );
 }
-

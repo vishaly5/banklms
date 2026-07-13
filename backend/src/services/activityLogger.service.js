@@ -30,7 +30,7 @@ const getRequestIp = (req) => {
 const durationForStudyTime = (activityType, durationSeconds = 0) => {
   const seconds = Math.max(0, Number(durationSeconds || 0));
   if (seconds > 0) return seconds;
-  return ['video_completed', 'lesson_opened', 'assessment_completed', 'live_class_left'].includes(activityType) ? 0 : 0;
+  return ['video_completed', 'lesson_opened', 'live_class_left'].includes(activityType) ? 0 : 0;
 };
 
 const summaryIncrementFor = (activityType, durationSeconds = 0) => {
@@ -43,7 +43,6 @@ const summaryIncrementFor = (activityType, durationSeconds = 0) => {
     course_viewed: 'coursesViewed',
     lesson_opened: 'lessonsOpened',
     video_completed: 'lessonsCompleted',
-    assessment_completed: 'assessmentsCompleted',
     assignment_submitted: 'assignmentsSubmitted',
     resource_downloaded: 'resourcesDownloaded',
     live_class_joined: 'liveClassesJoined',
@@ -63,7 +62,6 @@ export const logStudentActivity = async ({
   courseId = null,
   lessonId = null,
   sectionId = null,
-  assessmentId = null,
   activityType,
   title = '',
   description = '',
@@ -88,7 +86,6 @@ export const logStudentActivity = async ({
       course: courseId || null,
       lessonId: lessonId || null,
       sectionId: sectionId || null,
-      assessment: assessmentId || null,
       activityType,
       title,
       description,

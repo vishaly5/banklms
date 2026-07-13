@@ -7,8 +7,6 @@ export const STUDENT_ACTIVITY_TYPES = [
   'lesson_opened',
   'video_progress',
   'video_completed',
-  'assessment_started',
-  'assessment_completed',
   'assignment_submitted',
   'resource_downloaded',
   'live_class_joined',
@@ -37,11 +35,6 @@ const studentActivityLogSchema = new mongoose.Schema({
   },
   sectionId: {
     type: mongoose.Schema.Types.ObjectId,
-    default: null,
-  },
-  assessment: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Assessment',
     default: null,
   },
   activityType: {

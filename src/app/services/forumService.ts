@@ -1,6 +1,6 @@
 import axiosInstance from '../../utils/axiosConfig';
 
-export type ForumCategory = 'general' | 'course' | 'lesson' | 'assessment' | 'technical' | 'resource';
+export type ForumCategory = 'general' | 'course' | 'lesson' | 'technical' | 'resource';
 
 export interface ForumPost {
   _id: string;
@@ -86,4 +86,3 @@ export const aiSuggestReply = async (postId: string, userMessage: string) => {
   const res = await axiosInstance.post(`/forum/posts/${postId}/ai/suggest-reply`, { userMessage });
   return res.data as { success: boolean; data: { suggestion: string } };
 };
-

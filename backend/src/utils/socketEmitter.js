@@ -20,11 +20,6 @@ export const SOCKET_EVENTS = {
   LIVE_SESSION_UPDATED: 'live_session_updated',
   SESSION_STARTING: 'session_starting',
   
-  // Assessment events
-  NEW_ASSESSMENT: 'new_assessment',
-  ASSESSMENT_UPDATED: 'assessment_updated',
-  ASSESSMENT_GRADED: 'assessment_graded',
-  
   // Q&A events
   NEW_QUESTION: 'new_question',
   QUESTION_ANSWERED: 'question_answered',
@@ -158,20 +153,6 @@ export const notifyNewLiveSession = async (io, session) => {
       title: session.title,
       scheduledAt: session.scheduledAt,
       duration: session.duration
-    });
-  }
-};
-
-/**
- * Notify students about new assessment
- */
-export const notifyNewAssessment = async (io, assessment) => {
-  if (assessment.course) {
-    await emitToCourseStudents(io, assessment.course, SOCKET_EVENTS.NEW_ASSESSMENT, {
-      _id: assessment._id,
-      title: assessment.title,
-      dueDate: assessment.dueDate,
-      totalMarks: assessment.totalMarks
     });
   }
 };

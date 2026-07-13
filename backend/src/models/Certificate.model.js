@@ -95,7 +95,6 @@ const certificateSchema = new mongoose.Schema({
     completionPercentage: Number,
     totalLessons: Number,
     completedLessons: Number,
-    assessmentScore: Number,
   },
 
 }, {

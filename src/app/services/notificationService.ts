@@ -15,7 +15,7 @@ export interface Notification {
   _id: string;
   userId: string;
   type: 'success' | 'info' | 'warning' | 'error';
-  category: 'course' | 'assessment' | 'certificate' | 'session' | 'payment' | 'system';
+  category: 'course' | 'certificate' | 'session' | 'payment' | 'system';
   title: string;
   message: string;
   read: boolean;

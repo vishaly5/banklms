@@ -125,12 +125,6 @@ export const StudentProvider = ({ children }: StudentProviderProps) => {
         refreshDashboard();
       };
 
-      const handleNewAssessment = (data: any) => {
-        toast.warning(`New assessment available: ${data.title}`);
-        showBrowserNotification('New Assessment', `${data.title} is ready to take`);
-        refreshDashboard();
-      };
-
       const handleQuestionAnswered = (data: any) => {
         toast.success('Your question has been answered!');
         showBrowserNotification('Question Answered', 'Check your Q&A section for the response');
@@ -168,7 +162,6 @@ export const StudentProvider = ({ children }: StudentProviderProps) => {
       socketService.on('new_course', handleNewCourse);
       socketService.on('new_media', handleNewMedia);
       socketService.on('new_live_session', handleNewLiveSession);
-      socketService.on('new_assessment', handleNewAssessment);
       socketService.on('question_answered', handleQuestionAnswered);
       socketService.on('certificate_ready', handleCertificateReady);
       socketService.on('user_approved', handleUserApproved);
@@ -180,7 +173,6 @@ export const StudentProvider = ({ children }: StudentProviderProps) => {
         socketService.off('new_course', handleNewCourse);
         socketService.off('new_media', handleNewMedia);
         socketService.off('new_live_session', handleNewLiveSession);
-        socketService.off('new_assessment', handleNewAssessment);
         socketService.off('question_answered', handleQuestionAnswered);
         socketService.off('certificate_ready', handleCertificateReady);
         socketService.off('user_approved', handleUserApproved);

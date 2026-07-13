@@ -467,7 +467,6 @@ const courseSchema = new mongoose.Schema({
   // ── Certificate eligibility (legacy / advanced) ──────────────────────────────
   certificateEligibility: {
     minCompletionPercentage: { type: Number, default: 80, min: 0, max: 100 },
-    minAssessmentScore: { type: Number, default: 60, min: 0, max: 100 },
   },
 
   // ── Ratings & Reviews ───────────────────────────────────────────────────────

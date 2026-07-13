@@ -12,7 +12,6 @@ import {
   AlertCircle,
   BarChart3,
   Calendar,
-  FileText,
   Award,
   Activity
 } from 'lucide-react';
@@ -318,11 +317,6 @@ export default function TrainerDashboard() {
                     title="View Questions"
                     icon={<MessageSquare className="w-5 h-5" />}
                     onClick={handleViewAllQueries}
-                  />
-                  <ActionButton
-                    title="Create Assessment"
-                    icon={<FileText className="w-5 h-5" />}
-                    onClick={() => navigate('/trainer/create-assessment')}
                   />
                   <ActionButton
                     title="Schedule Live Session"

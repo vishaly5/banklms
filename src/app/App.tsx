@@ -4,12 +4,9 @@ import { BrandingBar } from './components/BrandingBar';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { Certificates } from './components/Certificates';
-import { LiveSessions } from './components/LiveSessions';
 import { QMS as Qms } from './components/QMS';
-import { MediaLibrary } from './components/MediaLibrary';
 import { MyCourses } from './components/MyCourses';
 import { GlobalCourses } from './components/GlobalCourses';
-import { Assessments } from './components/Assessments';
 import { Reports } from './components/Reports';
 import { UserManagement } from './components/UserManagement';
 import { Notifications } from './components/Notifications';
@@ -17,7 +14,6 @@ import { ProfileSettings } from './components/ProfileSettings';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { ChatbotLauncher } from './components/ChatbotLauncher';
 import { AdminUserInsights } from './components/AdminUserInsights';
-import { MyStudents } from './components/MyStudents';
 import { TrainerManagement } from './components/TrainerManagement';
 import { StudentManagement } from './components/admin/StudentManagement';
 import { DepartmentManagement } from './components/admin/DepartmentManagement';
@@ -26,11 +22,8 @@ import { BulkStudentImport } from './components/admin/BulkStudentImport';
 import { TrainerAssignment } from './components/admin/TrainerAssignment';
 import { CertificateManagement } from './components/admin/CertificateManagement';
 import { CourseReviewCenter } from './components/admin/CourseReviewCenter';
-import SmartSearch from './components/SmartSearch';
 import { CommunityForum } from './components/CommunityForum';
-import ByteSizeLearning from './components/byteSize/ByteSizeLearning';
 import AITutorPage from './components/AITutorPage';
-import { TrainerContentPlanning } from './components/TrainerContentPlanning';
 import { AssignmentsReview } from './components/AssignmentsReview';
 import { Toaster } from './components/ui/sonner';
 import CalendarActivity from '../pages/student/CalendarActivity';
@@ -196,10 +189,6 @@ export default function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const pageParam = urlParams.get('page');
-    if (window.location.pathname === '/trainer/content-planning' || window.location.pathname === '/teacher/content-planning') {
-      setActivePage('content-planning');
-      return;
-    }
     if (pageParam && pageParam !== activePage) {
       setActivePage(pageParam);
     }
@@ -207,18 +196,14 @@ export default function App() {
 
   const handlePageChange = (page: string) => {
     setActivePage(page);
-    window.history.pushState({}, '', page === 'content-planning' ? '/trainer/content-planning' : `/dashboard?page=${page}`);
+    window.history.pushState({}, '', `/dashboard?page=${page}`);
   };
 
-  // Listen for programmatic navigation from SmartSearch component
+  // Keep dashboard page state in sync when browser navigation changes the URL.
   useEffect(() => {
     const handlePopState = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const pageParam = urlParams.get('page');
-      if (window.location.pathname === '/trainer/content-planning' || window.location.pathname === '/teacher/content-planning') {
-        setActivePage('content-planning');
-        return;
-      }
       if (pageParam) setActivePage(pageParam);
     };
     window.addEventListener('popstate', handlePopState);
@@ -276,6 +261,7 @@ export default function App() {
         return (
           <Dashboard
             userRole={userRole}
+            currentUser={currentUser}
             onOpenAdminUsers={() => {
               if (userRole === 'admin') {
                 handlePageChange('admin-users');
@@ -307,10 +293,6 @@ export default function App() {
         return <GlobalCourses />;
       case 'courses':
         return <MyCourses userRole={userRole} />;
-      case 'content-planning':
-        return userRole === 'trainer' || userRole === 'admin'
-          ? <TrainerContentPlanning />
-          : <Dashboard userRole={userRole} onNavigate={(page) => handlePageChange(page)} />;
       case 'assignments-review':
         return userRole === 'trainer' || userRole === 'admin'
           ? <AssignmentsReview />
@@ -327,14 +309,10 @@ export default function App() {
         return userRole === 'admin'
           ? <StudentActivityMonitor />
           : <Dashboard userRole={userRole} onNavigate={(page) => handlePageChange(page)} />;
-      case 'my-students':
-        return <MyStudents userRole={userRole} />;
       case 'trainer-management':
         return <TrainerManagement userRole={userRole} />;
       case 'student-management':
         return <StudentManagement userRole={userRole} />;
-      case 'assessments':
-        return <Assessments userRole={userRole} />;
       case 'reports':
         return <Reports userRole={userRole} />;
       case 'certificates':
@@ -345,8 +323,6 @@ export default function App() {
         return userRole === 'admin'
           ? <CourseReviewCenter />
           : <Dashboard userRole={userRole} onNavigate={(page) => handlePageChange(page)} />;
-      case 'live-sessions':
-        return <LiveSessions userRole={userRole} />;
       case 'user-management':
         return <UserManagement userRole={userRole === 'participant' ? 'admin' : userRole} />;
       case 'departments':
@@ -363,21 +339,16 @@ export default function App() {
         return <ProfileSettings userRole={userRole} />;
       case 'qms':
         return <Qms userRole={userRole} />;
-      case 'media-library':
-        return <MediaLibrary userRole={userRole} />;
       case 'analytics':
         return <AnalyticsDashboard />;
-      case 'smart-search':
-        return <SmartSearch />;
       case 'forum':
         return <CommunityForum userRole={userRole} />;
-      case 'byte-size-learning':
-        return <ByteSizeLearning userRole={userRole} onNavigate={(page) => setActivePage(page)} />;
       case 'ai-tutor':
         if (userRole !== 'participant') {
           return (
             <Dashboard
               userRole={userRole}
+              currentUser={currentUser}
               onOpenAdminUsers={() => {
                 if (userRole === 'admin') {
                   handlePageChange('admin-users');
@@ -396,6 +367,7 @@ export default function App() {
         return (
           <Dashboard
             userRole={userRole}
+            currentUser={currentUser}
             onOpenAdminUsers={() => {
               if (userRole === 'admin') {
                 handlePageChange('admin-users');
@@ -412,14 +384,14 @@ export default function App() {
   };
 
   return (
-    <div className="size-full flex flex-col bg-gradient-to-br from-[#f7f8ff] via-white to-[#f4f8ff]">
+    <div className="size-full flex flex-col bg-[#f7f8fc]">
       {/* Branding Bar */}
-      <BrandingBar currentUser={currentUser} onLogout={handleLogout} />
+      <BrandingBar currentUser={currentUser} onLogout={handleLogout} onNavigate={handlePageChange} />
 
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
-        <Sidebar userRole={userRole} activePage={activePage} onPageChange={handlePageChange} />
+        <Sidebar userRole={userRole} activePage={activePage} onPageChange={handlePageChange} onLogout={handleLogout} />
 
         {/* Main Content */}
         <main className="relative flex-1 overflow-y-auto p-4 md:p-6 lg:p-7">
@@ -427,7 +399,7 @@ export default function App() {
         </main>
       </div>
 
-      <ChatbotLauncher />
+      {userRole === 'participant' && <ChatbotLauncher />}
       <Toaster position="top-right" richColors closeButton />
     </div>
   );

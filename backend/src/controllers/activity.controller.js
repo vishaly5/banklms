@@ -80,7 +80,6 @@ const mapLogForClient = (log) => ({
   course: log.course,
   lessonId: log.lessonId,
   sectionId: log.sectionId,
-  assessment: log.assessment,
   activityType: log.activityType,
   title: log.title,
   description: log.description,
@@ -118,7 +117,6 @@ const getSummaryForStudent = async (studentId, courseId) => {
           coursesViewed: { $sum: '$coursesViewed' },
           lessonsOpened: { $sum: '$lessonsOpened' },
           lessonsCompleted: { $sum: '$lessonsCompleted' },
-          assessmentsCompleted: { $sum: '$assessmentsCompleted' },
           assignmentsSubmitted: { $sum: '$assignmentsSubmitted' },
           resourcesDownloaded: { $sum: '$resourcesDownloaded' },
           liveClassesJoined: { $sum: '$liveClassesJoined' },
@@ -142,7 +140,6 @@ const getSummaryForStudent = async (studentId, courseId) => {
     coursesViewed: base.coursesViewed || 0,
     lessonsOpened: base.lessonsOpened || 0,
     lessonsCompleted: base.lessonsCompleted || 0,
-    assessmentsCompleted: base.assessmentsCompleted || 0,
     assignmentsSubmitted: base.assignmentsSubmitted || 0,
     resourcesDownloaded: base.resourcesDownloaded || 0,
     liveClassesJoined: base.liveClassesJoined || 0,
@@ -210,7 +207,6 @@ const getDayForStudent = async ({ studentId, dateKey, courseId, activityType }) 
   const query = buildLogQuery({ studentId, courseId, dateKey, activityType });
   const logs = await StudentActivityLog.find(query)
     .populate('course', 'title thumbnail')
-    .populate('assessment', 'title')
     .sort({ createdAt: -1 })
     .lean();
 

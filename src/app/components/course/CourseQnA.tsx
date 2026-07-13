@@ -106,7 +106,6 @@ export function CourseQnA({ courseId, userRole }: CourseQnAProps) {
     const colors: Record<string, string> = {
       'course-content': 'bg-blue-100 text-blue-700',
       'lesson': 'bg-purple-100 text-purple-700',
-      'assessment': 'bg-orange-100 text-orange-700',
       'technical': 'bg-red-100 text-red-700',
       'general': 'bg-gray-100 text-gray-700'
     };
@@ -176,7 +175,6 @@ export function CourseQnA({ courseId, userRole }: CourseQnAProps) {
                   <option value="general">General</option>
                   <option value="course-content">Course Content</option>
                   <option value="lesson">Lesson</option>
-                  <option value="assessment">Assessment</option>
                   <option value="technical">Technical</option>
                 </select>
               </div>
@@ -263,7 +261,6 @@ export function CourseQnA({ courseId, userRole }: CourseQnAProps) {
               <option value="general">General</option>
               <option value="course-content">Course Content</option>
               <option value="lesson">Lesson</option>
-              <option value="assessment">Assessment</option>
               <option value="technical">Technical</option>
             </select>
           </div>

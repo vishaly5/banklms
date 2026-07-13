@@ -323,7 +323,6 @@ export default function AdminDashboard() {
                 ['Add Users', UserPlus, 'import', 'border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/20', '#6366f1', 'Bulk CSV Import & Sync'],
                 ['Create Course', Plus, 'courses', 'border-blue-100 hover:border-blue-300 hover:bg-blue-50/20', '#3b82f6', 'Author modules & sections'],
                 ['New Batch', GraduationCap, 'batches', 'border-green-100 hover:border-green-300 hover:bg-green-50/20', '#10b981', 'Cohort assignments'],
-                ['Create Test', FileBarChart2, 'courses', 'border-yellow-100 hover:border-yellow-300 hover:bg-yellow-50/20', '#f59e0b', 'Grade & assessment files'],
                 ['View Reports', FileBarChart2, 'reports', 'border-purple-100 hover:border-purple-300 hover:bg-purple-50/20', '#8b5cf6', 'Growth & query stats'],
                 ['Go Live', Video, 'dashboard', 'border-pink-100 hover:border-pink-300 hover:bg-pink-50/20', '#ec4899', 'Instant classroom streams'],
               ].map(([label, Icon, target, hoverStyle, iconColor, desc]) => (

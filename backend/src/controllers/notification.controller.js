@@ -7,7 +7,7 @@ const notificationSchema = new mongoose.Schema({
   title:     { type: String, required: true },
   message:   { type: String, required: true },
   type:      { type: String, enum: ['info', 'success', 'warning', 'error'], default: 'info' },
-  category:  { type: String, enum: ['course', 'assessment', 'certificate', 'session', 'payment', 'system'], default: 'system' },
+  category:  { type: String, enum: ['course', 'certificate', 'session', 'payment', 'system'], default: 'system' },
   read:      { type: Boolean, default: false },
   isRead:    { type: Boolean, default: false }, // Alias for compatibility
   actionUrl: { type: String },

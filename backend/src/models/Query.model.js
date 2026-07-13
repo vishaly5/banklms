@@ -14,7 +14,7 @@ const querySchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['technical', 'course-content', 'assessment', 'certificate', 'payment', 'general'],
+    enum: ['technical', 'course-content', 'certificate', 'payment', 'general'],
     required: true
   },
   priority: {
