@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'http://localhost:5789/api/v1';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();

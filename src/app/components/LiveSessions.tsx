@@ -311,7 +311,7 @@ export function LiveSessions({ userRole }: LiveSessionsProps) {
 
   const loadCourses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/v1/courses', {
+      const response = await fetch('http://localhost:5789/api/v1/courses', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

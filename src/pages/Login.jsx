@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import AnuvadiniLanguageSwitcher from '../components/AnuvadiniLanguageSwitcher';
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'http://localhost:5789/api/v1';
 const TRANSLATE_API = 'https://pravahai.aicte-india.org/api/translatebulk';
 
 const easeOut = [0.22, 1, 0.36, 1];

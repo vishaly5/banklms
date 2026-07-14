@@ -299,7 +299,7 @@ export function MediaLibrary({ userRole }: MediaLibraryProps) {
                       // Increment view count when video starts playing
                       try {
                         const token = localStorage.getItem('token');
-                        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/media/${media._id}/view`, {
+                        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5789/api/v1'}/media/${media._id}/view`, {
                           method: 'POST',
                           headers: {
                             'Authorization': `Bearer ${token}`
@@ -335,7 +335,7 @@ export function MediaLibrary({ userRole }: MediaLibraryProps) {
                           // Increment view count when audio starts playing
                           try {
                             const token = localStorage.getItem('token');
-                            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/media/${media._id}/view`, {
+                            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5789/api/v1'}/media/${media._id}/view`, {
                               method: 'POST',
                               headers: {
                                 'Authorization': `Bearer ${token}`
@@ -369,7 +369,7 @@ export function MediaLibrary({ userRole }: MediaLibraryProps) {
                           // Increment view count when document is opened
                           try {
                             const token = localStorage.getItem('token');
-                            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/media/${media._id}/view`, {
+                            await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5789/api/v1'}/media/${media._id}/view`, {
                               method: 'POST',
                               headers: {
                                 'Authorization': `Bearer ${token}`

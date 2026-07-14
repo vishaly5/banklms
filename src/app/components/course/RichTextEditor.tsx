@@ -20,7 +20,7 @@ interface SunEditorInstance {
   onImageUploadBefore?: ((files: File[], info: unknown, core: unknown, uploadHandler: (arg?: unknown) => void) => boolean | File[] | undefined) | null;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5789/api/v1';
 const BACKEND_ORIGIN = API_BASE.replace(/\/api\/v1\/?$/, '');
 
 const toAbsoluteUrl = (url: string) => {

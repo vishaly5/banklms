@@ -109,7 +109,7 @@ certificateSchema.index({ verificationToken: 1, status: 1 });
 
 // Virtual for verification URL
 certificateSchema.virtual('verificationUrl').get(function() {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3006';
   return `${baseUrl}/verify/${this.verificationToken}`;
 });
 

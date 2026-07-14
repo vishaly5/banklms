@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import Login from './pages/Login';
-import LandingPage from './pages/LandingPage';
 import App from './app/App'; // Main dashboard app
 import { CertificateVerification } from './app/components/CertificateVerification';
 
@@ -21,7 +20,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   return <>{children}</>;
 }
 
-// Home: marketing landing for guests; dashboard when a session exists (same as Login.jsx)
+// Home: skip the marketing landing page; send guests to login and sessions to dashboard.
 function HomeGate() {
   const token = localStorage.getItem('token');
   const userRaw = localStorage.getItem('user');
@@ -30,14 +29,14 @@ function HomeGate() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <LandingPage />;
+  return <Navigate to="/login" replace />;
 }
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public landing; signed-in users go to dashboard */}
+        {/* Root gate; signed-in users go to dashboard, guests go to login */}
         <Route path="/" element={<HomeGate />} />
         
         {/* Login page */}

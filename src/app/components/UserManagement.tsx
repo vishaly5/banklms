@@ -40,7 +40,7 @@ import axios from 'axios';
 
 // ─── API Config ───────────────────────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:5000/api/v1';
+const API_BASE = 'http://localhost:5789/api/v1';
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token');

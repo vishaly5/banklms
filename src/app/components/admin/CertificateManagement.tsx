@@ -695,7 +695,7 @@ export function CertificateManagement() {
                 <div className="text-center">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">QR Code</p>
                   <img
-                    src={`http://localhost:5000${selectedCertificate.qrCodeUrl}`}
+                    src={`http://localhost:5789${selectedCertificate.qrCodeUrl}`}
                     alt="QR Code"
                     className="w-32 h-32 mx-auto"
                   />

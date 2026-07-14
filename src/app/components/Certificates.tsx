@@ -250,7 +250,7 @@ function CertificateViewer({
             {certificate.qrCodeUrl && (
               <div className="mt-8 flex justify-center">
                 <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                  <img src={`http://localhost:5000${certificate.qrCodeUrl}`} alt="Certificate QR code" className="mx-auto h-32 w-32" />
+                  <img src={`http://localhost:5789${certificate.qrCodeUrl}`} alt="Certificate QR code" className="mx-auto h-32 w-32" />
                   <p className="mt-2 text-xs font-semibold text-slate-500">Scan to verify</p>
                 </div>
               </div>

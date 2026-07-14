@@ -110,7 +110,7 @@ export const generateCertificate = async (userId, courseId) => {
     const verificationToken = generateVerificationToken();
 
     // Create verification URL
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3006';
     const verificationUrl = `${baseUrl}/verify/${verificationToken}`;
 
     // Generate QR code

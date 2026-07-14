@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { toAbsoluteAssetUrl } from '../utils/fileUrl';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5789/api/v1';
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
