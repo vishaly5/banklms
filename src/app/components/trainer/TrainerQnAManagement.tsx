@@ -45,9 +45,12 @@ interface FilterState {
   priority: string;
   status: SupportStatus;
   date: string;
+  unreadOnly: boolean;
 }
 
 const rowsPerPageOptions = [10, 20, 50];
+const defaultFilters: FilterState = { courseId: '', category: '', batch: '', priority: '', status: 'all', date: '', unreadOnly: false };
+const focusRing = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100 focus-visible:ring-offset-2';
 
 const categoryOptions = [
   { value: '', label: 'All Categories' },
@@ -129,8 +132,8 @@ export function TrainerQnAManagement({ userRole = 'trainer' }: TrainerQnAManagem
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filters, setFilters] = useState<FilterState>({ courseId: '', category: '', batch: '', priority: '', status: 'all', date: '' });
-  const [appliedFilters, setAppliedFilters] = useState<FilterState>({ courseId: '', category: '', batch: '', priority: '', status: 'all', date: '' });
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>(defaultFilters);
   const [selectedId, setSelectedId] = useState('');
   const [replyText, setReplyText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -193,6 +196,7 @@ export function TrainerQnAManagement({ userRole = 'trainer' }: TrainerQnAManagem
       const priority = getQueryPriority(query);
       const matchesPriority = !appliedFilters.priority || priority === appliedFilters.priority;
       const matchesDate = !appliedFilters.date || (appliedFilters.date === 'today' ? isToday(query.createdAt) : true);
+      const matchesUnread = !appliedFilters.unreadOnly || isUnread(query);
       const haystack = [
         learnerName(query),
         (query.student as any)?.email,
@@ -203,9 +207,9 @@ export function TrainerQnAManagement({ userRole = 'trainer' }: TrainerQnAManagem
         query.category,
         query.lessonReference,
       ].join(' ').toLowerCase();
-      return matchesPriority && matchesDate && (!debouncedSearch || haystack.includes(debouncedSearch));
+      return matchesPriority && matchesDate && matchesUnread && (!debouncedSearch || haystack.includes(debouncedSearch));
     });
-  }, [queries, appliedFilters.priority, appliedFilters.date, debouncedSearch]);
+  }, [queries, appliedFilters.priority, appliedFilters.date, appliedFilters.unreadOnly, debouncedSearch]);
 
   const selectedQuery = filteredQueries.find((query) => query._id === selectedId) || filteredQueries[0] || null;
   const totalPages = Math.max(1, Math.ceil(filteredQueries.length / rowsPerPage));
@@ -215,26 +219,25 @@ export function TrainerQnAManagement({ userRole = 'trainer' }: TrainerQnAManagem
 
   const applyQuickFilter = (status: SupportStatus | 'high' | 'unread') => {
     if (status === 'high') {
-      const next = { ...filters, priority: 'high', status: 'all' as SupportStatus };
+      const next = { ...filters, priority: 'high', status: 'all' as SupportStatus, unreadOnly: false };
       setFilters(next);
       setAppliedFilters(next);
       return;
     }
     if (status === 'unread') {
-      const next = { ...filters, priority: '', status: 'open' as SupportStatus };
+      const next = { ...filters, priority: '', status: 'all' as SupportStatus, unreadOnly: true };
       setFilters(next);
       setAppliedFilters(next);
       return;
     }
-    const next = { ...filters, priority: '', status };
+    const next = { ...filters, priority: '', status, unreadOnly: false };
     setFilters(next);
     setAppliedFilters(next);
   };
 
   const resetFilters = () => {
-    const next = { courseId: '', category: '', batch: '', priority: '', status: 'all' as SupportStatus, date: '' };
-    setFilters(next);
-    setAppliedFilters(next);
+    setFilters(defaultFilters);
+    setAppliedFilters(defaultFilters);
   };
 
   const handleReply = async () => {
@@ -277,7 +280,7 @@ export function TrainerQnAManagement({ userRole = 'trainer' }: TrainerQnAManagem
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-24">
+    <div className="min-h-screen bg-[#F8FAFC] pb-24 text-slate-950">
       <div className="mx-auto max-w-[1500px] space-y-6 px-4 py-5 sm:px-6 lg:px-8">
         <SupportHeader
           isAdmin={isAdmin}
@@ -304,7 +307,7 @@ export function TrainerQnAManagement({ userRole = 'trainer' }: TrainerQnAManagem
         ) : error ? (
           <SupportErrorState message={error} onRetry={() => loadQueries()} />
         ) : (
-          <div className="grid gap-6 xl:grid-cols-[minmax(360px,0.4fr)_minmax(0,0.6fr)]">
+          <div className="grid gap-5 lg:grid-cols-[minmax(320px,0.5fr)_minmax(0,0.5fr)] xl:grid-cols-[minmax(380px,0.4fr)_minmax(0,0.6fr)]">
             <section className="min-w-0 space-y-4">
               <div className="flex items-end justify-between gap-3">
                 <div>
@@ -356,7 +359,7 @@ function SupportHeader({ isAdmin, search, setSearch, refreshing, onRefresh }: {
   onRefresh: () => void;
 }) {
   return (
-    <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <header className="sticky top-0 z-20 rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-sm backdrop-blur">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-[32px] font-bold leading-tight tracking-normal text-slate-950">Learner Support Center</h1>
@@ -365,15 +368,15 @@ function SupportHeader({ isAdmin, search, setSearch, refreshing, onRefresh }: {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={onRefresh} disabled={refreshing} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">
+          <button onClick={onRefresh} disabled={refreshing} className={cn('inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60', focusRing)}>
             <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
             Refresh
           </button>
-          <button onClick={() => toast.info('Export needs a backend query export endpoint.')} className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <button onClick={() => toast.info('Export needs a backend query export endpoint.')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50', focusRing)}>
             <Download className="h-4 w-4" />
             Export
           </button>
-          <button onClick={() => toast.info('Support analytics can be connected to analytics APIs.')} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#5B4CF0] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#4b3ee0]">
+          <button onClick={() => toast.info('Support analytics can be connected to analytics APIs.')} className={cn('inline-flex h-11 items-center gap-2 rounded-xl bg-[#5B4CF0] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#4b3ee0]', focusRing)}>
             <Sparkles className="h-4 w-4" />
             Support Analytics
           </button>
@@ -385,7 +388,7 @@ function SupportHeader({ isAdmin, search, setSearch, refreshing, onRefresh }: {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search learner, course, ticket ID or keyword..."
-          className="h-12 w-full rounded-lg border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-800 outline-none transition focus:border-[#5B4CF0] focus:bg-white focus:ring-4 focus:ring-indigo-100"
+          className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-800 outline-none transition focus:border-[#5B4CF0] focus:bg-white focus:ring-4 focus:ring-indigo-100"
         />
       </label>
     </header>
@@ -408,9 +411,9 @@ function SupportStats({ stats }: { stats: { open: number; resolved: number; toda
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(({ title, value, subtitle, icon: Icon, tone, trend }) => (
-        <article key={title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+        <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
           <div className="flex items-start justify-between gap-3">
-            <div className={cn('flex h-11 w-11 items-center justify-center rounded-lg ring-1', toneMap[tone])}>
+            <div className={cn('flex h-11 w-11 items-center justify-center rounded-2xl ring-1', toneMap[tone])}>
               <Icon className="h-5 w-5" />
             </div>
             <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">{trend}</span>
@@ -431,7 +434,7 @@ function QuickFilterChips({ filters, onChange, unreadCount }: { filters: FilterS
     { value: 'pending', label: 'Pending', active: filters.status === 'pending' },
     { value: 'resolved', label: 'Resolved', active: filters.status === 'resolved' },
     { value: 'high', label: 'High Priority', active: filters.priority === 'high' },
-    { value: 'unread', label: `Unread ${unreadCount ? `(${unreadCount})` : ''}`, active: filters.status === 'open' && !filters.priority },
+    { value: 'unread', label: `Unread ${unreadCount ? `(${unreadCount})` : ''}`, active: filters.unreadOnly },
   ];
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -440,7 +443,7 @@ function QuickFilterChips({ filters, onChange, unreadCount }: { filters: FilterS
           key={item.value}
           onClick={() => onChange(item.value)}
           className={cn(
-            'whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition',
+            'whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100',
             item.active ? 'border-[#5B4CF0] bg-[#5B4CF0] text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
           )}
         >
@@ -459,7 +462,7 @@ function SupportFilterBar({ filters, setFilters, courses, onApply, onReset }: {
   onReset: () => void;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
         <Filter className="h-4 w-4 text-[#5B4CF0]" />
         Advanced Filters
@@ -505,7 +508,7 @@ function SupportFilterBar({ filters, setFilters, courses, onApply, onReset }: {
 
 function Select({ value, onChange, children }: { value: string; onChange: (value: string) => void; children: React.ReactNode }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none focus:border-[#5B4CF0] focus:ring-4 focus:ring-indigo-100">
+    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none focus:border-[#5B4CF0] focus:ring-4 focus:ring-indigo-100">
       {children}
     </select>
   );
@@ -529,7 +532,7 @@ function QueryCard({ query, selected, onClick }: { query: CourseQuery; selected:
     <button
       onClick={onClick}
       className={cn(
-        'w-full rounded-lg border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
+        'w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100',
         selected ? 'border-[#5B4CF0] ring-4 ring-indigo-100' : 'border-slate-200'
       )}
     >
@@ -574,8 +577,8 @@ function ConversationPanel(props: {
 }) {
   if (!props.query) {
     return (
-      <section className="min-w-0 rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-violet-50 text-[#5B4CF0]">
+      <section className="min-w-0 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-[#5B4CF0]">
           <MessageCircle className="h-7 w-7" />
         </div>
         <h2 className="mt-4 text-lg font-bold text-slate-950">Select a learner query</h2>
@@ -588,7 +591,7 @@ function ConversationPanel(props: {
   const name = learnerName(query);
   const priority = getQueryPriority(query);
   return (
-    <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -596,15 +599,15 @@ function ConversationPanel(props: {
             <p className="mt-1 text-sm text-slate-500">{name} / {query.course?.title || 'General Banking Training'}</p>
           </div>
           <div className="relative flex flex-wrap gap-2">
-            <button onClick={() => props.onPin(query._id)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button onClick={() => props.onPin(query._id)} className={cn('inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50', focusRing)}>
               <Pin className="h-4 w-4" />
               {query.isPinned ? 'Unpin' : 'Prioritize'}
             </button>
-            <button onClick={() => props.onResolve(query._id)} disabled={query.status === 'closed'} className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+            <button onClick={() => props.onResolve(query._id)} disabled={query.status === 'closed'} className={cn('inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50', focusRing)}>
               <CheckCircle className="h-4 w-4" />
               Resolve
             </button>
-            <button onClick={() => props.setActiveMenu(props.activeMenu === query._id ? '' : query._id)} className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">
+            <button aria-label="More ticket actions" onClick={() => props.setActiveMenu(props.activeMenu === query._id ? '' : query._id)} className={cn('flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50', focusRing)}>
               <MoreHorizontal className="h-4 w-4" />
             </button>
             {props.activeMenu === query._id && (
@@ -630,7 +633,7 @@ function ConversationPanel(props: {
       </div>
 
       <div className="max-h-[620px] space-y-4 overflow-y-auto bg-slate-50 p-5 pb-36">
-        <SystemEvent label="Query Created" date={query.createdAt} />
+        <SystemEvent label="Ticket Created" date={query.createdAt} />
         <MessageBubble side="left" author={name} date={query.createdAt} text={query.question} />
         {query.replies?.map((reply) => (
           <MessageBubble
@@ -658,7 +661,7 @@ function ConversationPanel(props: {
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
       <p className="mt-1 truncate text-sm font-bold capitalize text-slate-950">{value}</p>
     </div>
@@ -669,7 +672,7 @@ function MessageBubble({ side, author, date, text }: { side: 'left' | 'right'; a
   const right = side === 'right';
   return (
     <div className={cn('flex', right ? 'justify-end' : 'justify-start')}>
-      <div className={cn('max-w-[82%] rounded-lg px-4 py-3 shadow-sm', right ? 'bg-[#5B4CF0] text-white' : 'bg-white text-slate-800 ring-1 ring-slate-200')}>
+      <div className={cn('max-w-[82%] rounded-2xl px-4 py-3 shadow-sm', right ? 'bg-[#5B4CF0] text-white' : 'bg-white text-slate-800 ring-1 ring-slate-200')}>
         <div className={cn('mb-1 flex items-center justify-between gap-3 text-xs font-bold', right ? 'text-violet-100' : 'text-slate-500')}>
           <span>{author}</span>
           <span>{relativeTime(date)}</span>
@@ -697,7 +700,7 @@ function ReplyEditor({ value, setValue, submitting, disabled, onReply, onResolve
   onResolve: () => void;
 }) {
   return (
-    <div className="border-t border-slate-200 bg-white p-4">
+    <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 p-4 backdrop-blur">
       <textarea
         value={value}
         onChange={(event) => setValue(event.target.value)}
@@ -705,7 +708,7 @@ function ReplyEditor({ value, setValue, submitting, disabled, onReply, onResolve
         disabled={disabled}
         maxLength={2000}
         rows={4}
-        className="w-full resize-none rounded-lg border border-slate-200 px-3 py-3 text-sm leading-6 outline-none focus:border-[#5B4CF0] focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50"
+        className="w-full resize-none rounded-2xl border border-slate-200 px-3 py-3 text-sm leading-6 outline-none focus:border-[#5B4CF0] focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-50"
       />
       <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
