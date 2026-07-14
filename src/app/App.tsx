@@ -7,12 +7,10 @@ import { Certificates } from './components/Certificates';
 import { QMS as Qms } from './components/QMS';
 import { MyCourses } from './components/MyCourses';
 import { GlobalCourses } from './components/GlobalCourses';
-import { Reports } from './components/Reports';
 import { UserManagement } from './components/UserManagement';
 import { Notifications } from './components/Notifications';
 import { ProfileSettings } from './components/ProfileSettings';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
-import { ChatbotLauncher } from './components/ChatbotLauncher';
 import { AdminUserInsights } from './components/AdminUserInsights';
 import { TrainerManagement } from './components/TrainerManagement';
 import { StudentManagement } from './components/admin/StudentManagement';
@@ -26,7 +24,6 @@ import { CommunityForum } from './components/CommunityForum';
 import AITutorPage from './components/AITutorPage';
 import { AssignmentsReview } from './components/AssignmentsReview';
 import { Toaster } from './components/ui/sonner';
-import CalendarActivity from '../pages/student/CalendarActivity';
 import StudentActivityTracker from '../pages/teacher/StudentActivityTracker';
 import StudentActivityMonitor from '../pages/admin/StudentActivityMonitor';
 import axiosInstance from '../utils/axiosConfig';
@@ -297,10 +294,6 @@ export default function App() {
         return userRole === 'trainer' || userRole === 'admin'
           ? <AssignmentsReview />
           : <Dashboard userRole={userRole} onNavigate={(page) => handlePageChange(page)} />;
-      case 'calendar-activity':
-        return userRole === 'participant'
-          ? <CalendarActivity />
-          : <Dashboard userRole={userRole} onNavigate={(page) => handlePageChange(page)} />;
       case 'student-activity-tracker':
         return userRole === 'trainer'
           ? <StudentActivityTracker />
@@ -313,8 +306,6 @@ export default function App() {
         return <TrainerManagement userRole={userRole} />;
       case 'student-management':
         return <StudentManagement userRole={userRole} />;
-      case 'reports':
-        return <Reports userRole={userRole} />;
       case 'certificates':
         return <Certificates userRole={userRole} />;
       case 'certificate-management':
@@ -384,22 +375,19 @@ export default function App() {
   };
 
   return (
-    <div className="size-full flex flex-col bg-[#f7f8fc]">
-      {/* Branding Bar */}
-      <BrandingBar currentUser={currentUser} onLogout={handleLogout} onNavigate={handlePageChange} />
+    <div className="size-full flex bg-[#f7f8fc]">
+      {/* Left Sidebar */}
+      <Sidebar userRole={userRole} activePage={activePage} onPageChange={handlePageChange} onLogout={handleLogout} />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <Sidebar userRole={userRole} activePage={activePage} onPageChange={handlePageChange} onLogout={handleLogout} />
+      {/* Right Workspace */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <BrandingBar currentUser={currentUser} onLogout={handleLogout} onNavigate={handlePageChange} />
 
-        {/* Main Content */}
-        <main className="relative flex-1 overflow-y-auto p-4 md:p-6 lg:p-7">
+        <main className="relative flex-1 overflow-y-auto px-4 py-6 md:p-8">
           {renderContent()}
         </main>
       </div>
 
-      {userRole === 'participant' && <ChatbotLauncher />}
       <Toaster position="top-right" richColors closeButton />
     </div>
   );

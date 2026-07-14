@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   ArrowRight,
@@ -188,23 +188,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="glass-card ai-card" aria-hidden="true">
-          <div className="mini-title">
-            <span>
-              <Bot size={17} />
-            </span>
-            <div>
-              <strong>AI Tutor</strong>
-              <small>Online</small>
-            </div>
-          </div>
-          <p>Hello! I'm your AI learning assistant. How can I help you today?</p>
-          <div className="chat-field">
-            Ask anything...
-            <ArrowRight size={14} />
-          </div>
-        </div>
-
         <div className="glass-card live-card" aria-hidden="true">
           <div className="live-tag">LIVE</div>
           <small>Live Class</small>
@@ -279,26 +262,6 @@ export default function LandingPage() {
             Try AI Tutor Now
             <ChevronRight size={16} />
           </a>
-        </div>
-        <div className="assistant-chat">
-          <div className="mini-head">
-            <Bot size={16} />
-            <div>
-              <b>AI Tutor</b>
-              <small>Online</small>
-            </div>
-          </div>
-          <div className="bubble right">Explain the concept of Cooperative Society...</div>
-          <div className="bubble">
-            A cooperative society is an autonomous association of persons united voluntarily to meet their economic,
-            social and cultural needs.
-          </div>
-          <div className="mini-input">
-            Type your question...
-            <span>
-              <ChevronRight size={13} />
-            </span>
-          </div>
         </div>
         <div className="assistant-tools">
           {assistantTools.map(({ icon: Icon, title, copy }) => (
@@ -755,10 +718,6 @@ export default function LandingPage() {
         .mini-title strong,
         .mini-title small { display: block; }
         .mini-title small { color: rgba(255,255,255,0.8); font-size: 10px; font-weight: 800; }
-        .ai-card p { margin: 18px 0; font-size: 12px; font-weight: 800; line-height: 1.55; }
-        .chat-field { display: flex; align-items: center; justify-content: space-between; height: 38px; padding: 0 8px 0 12px; border-radius: 9px; background: rgba(255,255,255,0.18); font-size: 11px; font-weight: 800; }
-        .chat-field svg { display: grid; place-items: center; width: 24px; height: 24px; padding: 5px; border-radius: 50%; background: #22c998; }
-
         .live-card {
           left: calc(50% + 170px);
           top: 560px;
@@ -1253,26 +1212,6 @@ export default function LandingPage() {
           font-weight: 900;
         }
 
-        .ceas-ai-card p {
-          margin: 12px 0 12px;
-          color: #344357;
-          font-size: 10px;
-          font-weight: 700;
-          line-height: 1.45;
-        }
-
-        .ceas-chat-input {
-          display: flex;
-          align-items: center;
-          height: 31px;
-          padding: 0 10px;
-          border-radius: 999px;
-          background: #f4f7f8;
-          color: #8a95a3;
-          font-size: 9px;
-          font-weight: 900;
-        }
-
         .ceas-live-card {
           right: 7.4%;
           top: 43%;
@@ -1632,7 +1571,6 @@ export default function LandingPage() {
         }
 
         .assistant-copy,
-        .assistant-chat,
         .assistant-tools,
         .impact-content,
         .reach-copy,
@@ -1683,87 +1621,7 @@ export default function LandingPage() {
           background: #1ec968;
           box-shadow: 0 0 18px rgba(30, 201, 104, 0.8);
         }
-
-        .assistant-chat {
-          align-self: center;
-          justify-self: end;
-          width: min(100%, 430px);
-          min-height: 184px;
-          padding: 14px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.82);
-          color: #172033;
-          box-shadow: 0 18px 42px rgba(0, 0, 0, 0.16);
-          opacity: 0.9;
-          backdrop-filter: blur(8px);
-        }
-
-        .mini-head {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .mini-head svg {
-          color: #0f7c3f;
-        }
-
-        .mini-head b,
-        .mini-head small {
-          display: block;
-          font-size: 11px;
-          font-weight: 900;
-        }
-
-        .mini-head small {
-          color: #16803a;
-        }
-
-        .bubble {
-          width: 78%;
-          margin: 8px 0;
-          padding: 8px 11px;
-          border-radius: 12px;
-          background: #edf4f0;
-          color: #425167;
-          font-size: 8.5px;
-          font-weight: 700;
-          line-height: 1.5;
-          animation: chatPop 3.4s ease-in-out infinite;
-        }
-
-        .bubble.right {
-          margin-left: auto;
-          background: #f2ecff;
-        }
-
-        .mini-input {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          height: 34px;
-          margin-top: 10px;
-          padding-left: 15px;
-          border-radius: 999px;
-          background: #f6f8f9;
-          color: #9aa3ad;
-          font-size: 9px;
-          font-weight: 800;
-        }
-
-        .mini-input span {
-          display: grid;
-          place-items: center;
-          width: 28px;
-          height: 28px;
-          margin-right: 3px;
-          border-radius: 50%;
-          background: #0f6a37;
-          color: #fff;
-        }
-
-        .assistant-tools {
+.assistant-tools {
           align-self: center;
           display: grid;
           gap: 10px;

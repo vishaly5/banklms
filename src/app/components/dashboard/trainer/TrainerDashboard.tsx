@@ -4,8 +4,8 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardCheck,
-  FileText,
   Loader2,
+  MessageSquare,
   Plus,
   RefreshCw,
   Users,
@@ -461,7 +461,7 @@ function QuickActions({ onNavigate }: { onNavigate?: (page: string) => void }) {
     { label: 'Create Course', icon: Plus, page: 'courses', enabled: true },
     { label: 'Create Batch', icon: Users, page: 'batches', enabled: true },
     { label: 'Add Assignment', icon: ClipboardCheck, page: 'assignments-review', enabled: true },
-    { label: 'Generate Report', icon: FileText, page: 'reports', enabled: true },
+    { label: 'Community Forum', icon: MessageSquare, page: 'forum', enabled: true },
   ];
 
   return (

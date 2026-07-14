@@ -35,14 +35,19 @@ import { CourseInfoButton } from './myCourses/CourseInfoButton';
 import { CourseInfoModal } from './myCourses/CourseInfoModal';
 import { stripHtml } from './myCourses/courseInfoHelpers';
 import type { Course, CourseStatus } from './myCourses/types';
+import { TrainerMyCoursesPage } from './courses/TrainerMyCoursesPage';
 
 interface MyCoursesProps {
   userRole: 'admin' | 'trainer' | 'participant';
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export function MyCourses({ userRole }: MyCoursesProps) {
-  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
+export function MyCourses({ userRole }: MyCoursesProps) {
+  if (userRole === 'trainer') {
+    return <TrainerMyCoursesPage />;
+  }
+
+  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<number | string | null>(null);

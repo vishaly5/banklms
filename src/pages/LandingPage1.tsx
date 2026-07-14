@@ -197,20 +197,6 @@ export default function LandingPage() {
         <div className="ceas-hero-visual" aria-hidden="true">
           <img className="ceas-hero-image" src="/hero.png" alt="" />
 
-          <div className="ceas-float-card ceas-ai-card float-a">
-            <div className="ceas-card-title">
-              <span>
-                <Bot size={15} />
-              </span>
-              <div>
-                <b>AI Tutor</b>
-                <small>Online</small>
-              </div>
-            </div>
-            <p>Hello! I'm your AI learning assistant. How can I help you today?</p>
-            <div className="ceas-chat-input">Ask Anything...</div>
-          </div>
-
           <div className="ceas-float-card ceas-progress-card float-b">
             <b>Learning Progress</b>
             <div className="ceas-progress-ring">
@@ -290,26 +276,6 @@ export default function LandingPage() {
             Try AI Tutor Now
             <ChevronRight size={16} />
           </a>
-        </div>
-        <div className="assistant-chat">
-          <div className="mini-head">
-            <Bot size={16} />
-            <div>
-              <b>AI Tutor</b>
-              <small>Online</small>
-            </div>
-          </div>
-          <div className="bubble right">Explain the concept of Cooperative Society...</div>
-          <div className="bubble">
-            A cooperative society is an autonomous association of persons united voluntarily to meet their economic,
-            social and cultural needs.
-          </div>
-          <div className="mini-input">
-            Type your question...
-            <span>
-              <ChevronRight size={13} />
-            </span>
-          </div>
         </div>
         <div className="assistant-tools">
           {assistantTools.map(({ icon: Icon, title, copy }) => (
@@ -896,28 +862,7 @@ export default function LandingPage() {
           font-size: 8px;
           font-weight: 900;
         }
-
-        .ceas-ai-card p {
-          margin: 12px 0 12px;
-          color: #344357;
-          font-size: 10px;
-          font-weight: 700;
-          line-height: 1.45;
-        }
-
-        .ceas-chat-input {
-          display: flex;
-          align-items: center;
-          height: 31px;
-          padding: 0 10px;
-          border-radius: 999px;
-          background: #f4f7f8;
-          color: #8a95a3;
-          font-size: 9px;
-          font-weight: 900;
-        }
-
-        .ceas-progress-card {
+.ceas-progress-card {
           left: 52%;
           top: 45.5%;
           width: 126px;
@@ -1209,7 +1154,6 @@ export default function LandingPage() {
         }
 
         .assistant-copy,
-        .assistant-chat,
         .assistant-tools,
         .impact-content,
         .reach-copy,
@@ -1260,84 +1204,7 @@ export default function LandingPage() {
           background: #1ec968;
           box-shadow: 0 0 18px rgba(30, 201, 104, 0.8);
         }
-
-        .assistant-chat {
-          align-self: center;
-          min-height: 214px;
-          padding: 18px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.9);
-          color: #172033;
-          box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
-          opacity: 0.94;
-        }
-
-        .mini-head {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-
-        .mini-head svg {
-          color: #0f7c3f;
-        }
-
-        .mini-head b,
-        .mini-head small {
-          display: block;
-          font-size: 11px;
-          font-weight: 900;
-        }
-
-        .mini-head small {
-          color: #16803a;
-        }
-
-        .bubble {
-          width: 86%;
-          margin: 10px 0;
-          padding: 10px 13px;
-          border-radius: 13px;
-          background: #edf4f0;
-          color: #425167;
-          font-size: 9px;
-          font-weight: 700;
-          line-height: 1.6;
-          animation: chatPop 3.4s ease-in-out infinite;
-        }
-
-        .bubble.right {
-          margin-left: auto;
-          background: #f2ecff;
-        }
-
-        .mini-input {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          height: 38px;
-          margin-top: 14px;
-          padding-left: 15px;
-          border-radius: 999px;
-          background: #f6f8f9;
-          color: #9aa3ad;
-          font-size: 9px;
-          font-weight: 800;
-        }
-
-        .mini-input span {
-          display: grid;
-          place-items: center;
-          width: 32px;
-          height: 32px;
-          margin-right: 3px;
-          border-radius: 50%;
-          background: #0f6a37;
-          color: #fff;
-        }
-
-        .assistant-tools {
+.assistant-tools {
           align-self: center;
           display: grid;
           gap: 10px;

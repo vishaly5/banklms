@@ -19,6 +19,7 @@ import {
   Video,
   ArrowUpRight,
   Clock,
+  MessageCircle,
 } from 'lucide-react';
 import axiosInstance from '../utils/axiosConfig';
 import UserManagement from '../components/admin/UserManagement';
@@ -139,7 +140,7 @@ export default function AdminDashboard() {
     { id: 'import', label: 'Bulk Import', icon: UserPlus },
     { id: 'courses', label: 'Course Management', icon: BookOpen },
     { id: 'analytics', label: 'Advanced Analytics', icon: FileBarChart2 },
-    { id: 'reports', label: 'Platform Reports', icon: FileBarChart2 },
+    { id: 'forum', label: 'Community Forum', icon: MessageCircle },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'settings', label: 'Profile Settings', icon: Settings },
   ];
@@ -259,7 +260,7 @@ export default function AdminDashboard() {
                     else if (card.title === 'Total Courses') setActiveSection('courses');
                     else if (card.title === 'Enrollments') setActiveSection('students');
                     else if (card.title === 'Completed') setActiveSection('courses');
-                    else if (card.title === 'Certificates') setActiveSection('reports');
+                    else if (card.title === 'Certificates') setActiveSection('dashboard');
                   }}
                   className="relative group rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 cursor-pointer overflow-hidden"
                   style={{
@@ -323,7 +324,7 @@ export default function AdminDashboard() {
                 ['Add Users', UserPlus, 'import', 'border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/20', '#6366f1', 'Bulk CSV Import & Sync'],
                 ['Create Course', Plus, 'courses', 'border-blue-100 hover:border-blue-300 hover:bg-blue-50/20', '#3b82f6', 'Author modules & sections'],
                 ['New Batch', GraduationCap, 'batches', 'border-green-100 hover:border-green-300 hover:bg-green-50/20', '#10b981', 'Cohort assignments'],
-                ['View Reports', FileBarChart2, 'reports', 'border-purple-100 hover:border-purple-300 hover:bg-purple-50/20', '#8b5cf6', 'Growth & query stats'],
+                ['Community Forum', MessageCircle, 'forum', 'border-purple-100 hover:border-purple-300 hover:bg-purple-50/20', '#8b5cf6', 'Learner discussions'],
                 ['Go Live', Video, 'dashboard', 'border-pink-100 hover:border-pink-300 hover:bg-pink-50/20', '#ec4899', 'Instant classroom streams'],
               ].map(([label, Icon, target, hoverStyle, iconColor, desc]) => (
                 <button
@@ -523,7 +524,7 @@ export default function AdminDashboard() {
                   Recent Ratings & Reviews
                 </h3>
                 <button
-                  onClick={() => setActiveSection('reports')}
+                  onClick={() => setActiveSection('analytics')}
                   className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-150 transition-colors"
                 >
                   View All Reviews
@@ -564,8 +565,8 @@ export default function AdminDashboard() {
             {[
               ['Approve Users', '0', 'pending approvals', '#8b5cf6', 'from-violet-500/10 to-transparent', 'users'],
               ['Manage Courses', '3', 'active courses', '#3b82f6', 'from-blue-500/10 to-transparent', 'courses'],
-              ['View Reports', '0', 'system queries', '#10b981', 'from-emerald-500/10 to-transparent', 'reports'],
-              ['Certificates Issued', '5', 'total credentials', '#db2777', 'from-pink-500/10 to-transparent', 'reports'],
+              ['Student Query', '0', 'system queries', '#10b981', 'from-emerald-500/10 to-transparent', 'dashboard'],
+              ['Certificates Issued', '5', 'total credentials', '#db2777', 'from-pink-500/10 to-transparent', 'dashboard'],
             ].map((x) => (
               <div
                 key={x[0]}

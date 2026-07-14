@@ -6,9 +6,6 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "ai": "node ai-service/start.js",
-    "ai:setup": "node ai-service/start.js --setup-only",
-    "postinstall": "node ai-service/start.js --setup-only --optional",
     "fix:batch-relations": "node backend/src/scripts/fixBatchCourseRelations.js"
   },
   "dependencies": {

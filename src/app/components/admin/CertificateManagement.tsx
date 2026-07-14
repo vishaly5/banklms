@@ -19,8 +19,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Copy,
-  Bot
+  Copy
 } from 'lucide-react';
 import {
   getAllCertificates,
@@ -120,23 +119,6 @@ function ActionButton({
     >
       {children}
     </button>
-  );
-}
-
-function AssistantButton() {
-  return (
-    <div className="fixed bottom-6 right-6 z-50">
-      <button className="group flex items-center gap-3 rounded-full bg-gradient-to-r from-slate-950 via-indigo-950 to-purple-950 px-4 py-3 text-white shadow-xl shadow-indigo-950/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl">
-        <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 text-slate-950 shadow-lg shadow-emerald-500/20">
-          <Bot className="h-5 w-5" />
-          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
-        </span>
-        <span className="hidden sm:block text-left leading-tight">
-          <span className="block text-sm font-semibold">AI Assistant</span>
-          <span className="block text-xs text-slate-300">Open chatbot</span>
-        </span>
-      </button>
-    </div>
   );
 }
 
@@ -528,8 +510,6 @@ export function CertificateManagement() {
           )}
         </div>
       </section>
-
-      <AssistantButton />
 
       {/* Revoke Modal */}
       {showRevokeModal && selectedCertificate && (

@@ -1,49 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Plus,
-  Edit2,
-  Trash2,
-  Search,
-  RefreshCw,
+  Archive,
+  ArrowRight,
+  BarChart3,
   BookOpen,
-  Users,
   Building2,
-  Loader2,
-  X,
   Calendar,
-  Filter,
+  ChevronDown,
+  Download,
+  Edit2,
   Eye,
+  Loader2,
+  MoreVertical,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
   UserPlus,
-  Info,
-  CheckCircle2,
-  AlertTriangle,
-  Mail,
-  Phone,
-  GraduationCap,
-  User,
+  Users,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axiosInstance from '../../../utils/axiosConfig';
 import {
-  getBatches,
+  assignStudentsToBatch,
   createBatch,
-  updateBatch,
   deleteBatch,
   getAssignableStudents,
+  getBatches,
   getBatchStudents,
-  assignStudentsToBatch,
   removeStudentsFromBatch,
+  updateBatch,
   type Batch,
   type BatchStudent,
   type CreateBatchData,
   type UpdateBatchData,
 } from '../../services/batchService';
-import {
-  getDepartments,
-  type Department,
-} from '../../services/departmentService';
+import { getDepartments, type Department } from '../../services/departmentService';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type BatchStatus = 'all' | 'active' | 'completed' | 'draft' | 'archived';
+type StudentModalTab = 'assign' | 'assigned';
 
 interface BatchFormData {
   name: string;
@@ -54,6 +50,13 @@ interface BatchFormData {
   endDate: string;
   maxStudents: number;
   trainers: string[];
+}
+
+interface Filters {
+  department: string;
+  year: string;
+  status: BatchStatus;
+  search: string;
 }
 
 const EMPTY_FORM: BatchFormData = {
@@ -67,39 +70,65 @@ const EMPTY_FORM: BatchFormData = {
   trainers: [],
 };
 
-interface Filters {
-  department: string;
-  year: string;
-  search: string;
-}
+const ROWS_PER_PAGE_OPTIONS = [10, 20, 50];
 
-type StudentModalTab = 'assign' | 'assigned';
+const initials = (value = '') =>
+  value
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'BA';
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+const trainerName = (trainer: any) =>
+  trainer ? `${trainer.firstName || ''} ${trainer.lastName || ''}`.trim() || trainer.fullName || trainer.name || trainer.email || 'Trainer' : '';
+
+const getBatchStatus = (batch: Batch): Exclude<BatchStatus, 'all'> => {
+  if (batch.isActive === false) return 'archived';
+  if (batch.endDate && new Date(batch.endDate) < new Date()) return 'completed';
+  if (batch.startDate && new Date(batch.startDate) > new Date()) return 'draft';
+  return 'active';
+};
+
+const formatDate = (value?: string) => {
+  if (!value) return 'Not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not set';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const occupancy = (batch: Batch) => {
+  const max = Number(batch.maxStudents || 0);
+  if (!max) return 0;
+  return Math.min(100, Math.round((Number(batch.currentStudents || 0) / max) * 100));
+};
 
 export function BatchManagement() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [trainers, setTrainers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>({ department: '', year: '', status: 'all', search: '' });
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
   const [showModal, setShowModal] = useState(false);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
   const [formData, setFormData] = useState<BatchFormData>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Filters>({
-    department: '',
-    year: '',
-    search: '',
-  });
+  const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Batch details modal
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
   const [batchStudents, setBatchStudents] = useState<any[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
-  const [showBatchDetails, setShowBatchDetails] = useState(false);
 
-  // Student assignment modal
   const [studentModalBatch, setStudentModalBatch] = useState<Batch | null>(null);
   const [studentModalTab, setStudentModalTab] = useState<StudentModalTab>('assign');
   const [assignableStudents, setAssignableStudents] = useState<BatchStudent[]>([]);
@@ -114,68 +143,209 @@ export function BatchManagement() {
   const [assigningStudents, setAssigningStudents] = useState(false);
   const [removingStudents, setRemovingStudents] = useState(false);
 
-  // Trainer details modal
-  const [selectedTrainer, setSelectedTrainer] = useState<any | null>(null);
-  const [loadingTrainer, setLoadingTrainer] = useState(false);
-  const [showTrainerModal, setShowTrainerModal] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(filters.search.trim().toLowerCase()), 300);
+    return () => window.clearTimeout(timer);
+  }, [filters.search]);
 
-  // ── Fetch data ────────────────────────────────────────────────────────────
-  const fetchBatches = async () => {
-    setLoading(true);
+  const fetchBatches = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
     try {
-      const params: any = { isActive: true };
-      if (filters.department) params.department = filters.department;
-      if (filters.year) params.year = parseInt(filters.year);
-      if (filters.search) params.search = filters.search;
-
-      const response = await getBatches(params);
+      const response = await getBatches({ isActive: undefined, limit: 500 });
       setBatches(response.data || []);
-    } catch (error: any) {
-      console.error('Error fetching batches:', error);
-      toast.error(error.message || 'Failed to load batches');
+    } catch (err: any) {
+      setError(err.message || 'Unable to load batches.');
+      toast.error(err.message || 'Failed to load batches');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const fetchDepartments = async () => {
     try {
-      const response = await getDepartments({ isActive: true });
+      const response = await getDepartments({ isActive: true, limit: 500 });
       setDepartments(response.data || []);
-    } catch (error: any) {
-      console.error('Error fetching departments:', error);
+    } catch (err) {
+      console.error('Error fetching departments:', err);
     }
   };
 
   const fetchTrainers = async () => {
     try {
-      const response = await axiosInstance.get('/admin/users', {
-        params: { role: 'trainer', isApproved: true }
-      });
-      if (response.data.success) {
-        setTrainers(response.data.data || []);
-      }
-    } catch (error: any) {
-      console.error('Error fetching trainers:', error);
+      const response = await axiosInstance.get('/admin/users', { params: { role: 'trainer', isApproved: true } });
+      if (response.data.success) setTrainers(response.data.data || []);
+    } catch (err) {
+      console.error('Error fetching trainers:', err);
     }
   };
 
   useEffect(() => {
     fetchDepartments();
     fetchTrainers();
+    fetchBatches();
   }, []);
 
   useEffect(() => {
-    fetchBatches();
-  }, [filters.department, filters.year]);
+    setPage(1);
+  }, [filters.department, filters.year, filters.status, debouncedSearch, rowsPerPage]);
+
+  const filteredBatches = useMemo(() => {
+    return batches.filter((batch) => {
+      const status = getBatchStatus(batch);
+      const trainerText = (batch.trainers || []).map(trainerName).join(' ');
+      const searchText = `${batch.name} ${batch.code} ${batch.department?.name || ''} ${trainerText} ${batch.year}`.toLowerCase();
+      const matchesSearch = !debouncedSearch || searchText.includes(debouncedSearch);
+      const matchesDepartment = !filters.department || batch.department?._id === filters.department;
+      const matchesYear = !filters.year || String(batch.year) === filters.year;
+      const matchesStatus = filters.status === 'all' || status === filters.status;
+      return matchesSearch && matchesDepartment && matchesYear && matchesStatus;
+    });
+  }, [batches, debouncedSearch, filters]);
+
+  const stats = useMemo(() => {
+    const totalCapacity = batches.reduce((sum, batch) => sum + Number(batch.maxStudents || 0), 0);
+    const activeLearners = batches.reduce((sum, batch) => sum + Number(batch.currentStudents || 0), 0);
+    return {
+      total: batches.length,
+      learners: activeLearners,
+      utilization: totalCapacity ? Math.round((activeLearners / totalCapacity) * 100) : 0,
+      completed: batches.filter((batch) => getBatchStatus(batch) === 'completed').length,
+    };
+  }, [batches]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredBatches.length / rowsPerPage));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * rowsPerPage;
+  const pageBatches = filteredBatches.slice(start, start + rowsPerPage);
+  const years = Array.from(new Set(batches.map((batch) => batch.year))).sort((a, b) => b - a);
+
+  const openModal = (batch?: Batch) => {
+    if (batch) {
+      setEditingBatch(batch);
+      setFormData({
+        name: batch.name,
+        code: batch.code,
+        department: batch.department?._id || '',
+        year: batch.year,
+        startDate: batch.startDate ? batch.startDate.split('T')[0] : '',
+        endDate: batch.endDate ? batch.endDate.split('T')[0] : '',
+        maxStudents: batch.maxStudents || 50,
+        trainers: batch.trainers?.map((trainer) => trainer._id) || [],
+      });
+    } else {
+      setEditingBatch(null);
+      setFormData(EMPTY_FORM);
+    }
+    setShowModal(true);
+  };
+
+  const duplicateBatch = (batch: Batch) => {
+    setEditingBatch(null);
+    setFormData({
+      name: `${batch.name} Copy`,
+      code: `${batch.code}-COPY`.slice(0, 24),
+      department: batch.department?._id || '',
+      year: batch.year,
+      startDate: batch.startDate ? batch.startDate.split('T')[0] : '',
+      endDate: batch.endDate ? batch.endDate.split('T')[0] : '',
+      maxStudents: batch.maxStudents || 50,
+      trainers: batch.trainers?.map((trainer) => trainer._id) || [],
+    });
+    setShowModal(true);
+    setActiveMenu(null);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingBatch(null);
+    setFormData(EMPTY_FORM);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!formData.name.trim()) return toast.error('Batch name is required');
+    if (!formData.code.trim()) return toast.error('Batch code is required');
+    if (!formData.department) return toast.error('Department is required');
+
+    setSubmitting(true);
+    try {
+      const payload: CreateBatchData | UpdateBatchData = {
+        name: formData.name.trim(),
+        code: formData.code.trim().toUpperCase(),
+        department: formData.department,
+        year: formData.year,
+        startDate: formData.startDate || undefined,
+        endDate: formData.endDate || undefined,
+        maxStudents: formData.maxStudents,
+        trainers: formData.trainers,
+      };
+      if (editingBatch) {
+        const response = await updateBatch(editingBatch._id, payload);
+        setBatches((prev) => prev.map((batch) => (batch._id === editingBatch._id ? response.data : batch)));
+        toast.success('Batch updated successfully');
+      } else {
+        const response = await createBatch(payload as CreateBatchData);
+        setBatches((prev) => [response.data, ...prev]);
+        toast.success('Batch created successfully');
+      }
+      closeModal();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save batch');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const archiveBatch = async (batch: Batch) => {
+    setActionLoading(batch._id);
+    try {
+      const response = await updateBatch(batch._id, { isActive: false });
+      setBatches((prev) => prev.map((item) => (item._id === batch._id ? response.data : item)));
+      toast.success('Batch archived');
+      setActiveMenu(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to archive batch');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setActionLoading(deleteTarget._id);
+    try {
+      await deleteBatch(deleteTarget._id);
+      setBatches((prev) => prev.filter((batch) => batch._id !== deleteTarget._id));
+      toast.success('Batch deleted successfully');
+      setDeleteTarget(null);
+      setActiveMenu(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete batch');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const viewBatchDetails = async (batch: Batch) => {
+    setSelectedBatch(batch);
+    setLoadingStudents(true);
+    try {
+      const response = await getBatchStudents(batch._id, { limit: 100 });
+      setBatchStudents(response.data?.students || response.data || []);
+    } catch {
+      setBatchStudents([]);
+      toast.error('Failed to load batch students');
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
 
   const refreshBatchCount = (batchId: string, currentStudents: number) => {
-    setBatches((prev) =>
-      prev.map((batch) => (batch._id === batchId ? { ...batch, currentStudents } : batch))
-    );
-    setStudentModalBatch((prev) =>
-      prev && prev._id === batchId ? { ...prev, currentStudents } : prev
-    );
+    setBatches((prev) => prev.map((batch) => (batch._id === batchId ? { ...batch, currentStudents } : batch)));
+    setStudentModalBatch((prev) => (prev && prev._id === batchId ? { ...prev, currentStudents } : prev));
   };
 
   const loadAssignableStudents = async (batch: Batch, searchValue = studentSearch, unassignedOnly = onlyUnassigned) => {
@@ -188,9 +358,8 @@ export function BatchManagement() {
         onlyUnassigned: unassignedOnly,
       });
       setAssignableStudents(response.data?.students || []);
-    } catch (error: any) {
-      console.error('Error loading assignable students:', error);
-      toast.error(error.message || 'Failed to load assignable students');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load assignable students');
       setAssignableStudents([]);
     } finally {
       setLoadingAssignable(false);
@@ -200,15 +369,10 @@ export function BatchManagement() {
   const loadAssignedStudents = async (batch: Batch, searchValue = assignedSearch) => {
     setLoadingAssigned(true);
     try {
-      const response = await getBatchStudents(batch._id, {
-        search: searchValue || undefined,
-        page: 1,
-        limit: 100,
-      });
+      const response = await getBatchStudents(batch._id, { search: searchValue || undefined, page: 1, limit: 100 });
       setAssignedStudents(response.data?.students || response.data || []);
-    } catch (error: any) {
-      console.error('Error loading assigned students:', error);
-      toast.error(error.message || 'Failed to load assigned students');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load assigned students');
       setAssignedStudents([]);
     } finally {
       setLoadingAssigned(false);
@@ -225,82 +389,36 @@ export function BatchManagement() {
     setOnlyUnassigned(true);
     loadAssignableStudents(batch, '', true);
     loadAssignedStudents(batch, '');
-  };
-
-  const closeStudentAssignmentModal = () => {
-    setStudentModalBatch(null);
-    setSelectedStudentIds([]);
-    setSelectedRemoveIds([]);
-  };
-
-  const toggleStudentSelection = (studentId: string) => {
-    setSelectedStudentIds((prev) =>
-      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
-    );
-  };
-
-  const toggleRemoveSelection = (studentId: string) => {
-    setSelectedRemoveIds((prev) =>
-      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
-    );
+    setActiveMenu(null);
   };
 
   const handleAssignStudents = async () => {
-    if (!studentModalBatch || selectedStudentIds.length === 0) {
-      toast.error('Please select students to assign');
-      return;
-    }
-
-    const movingStudents = assignableStudents.filter(
-      (student) =>
-        selectedStudentIds.includes(student._id) &&
-        student.assignedBatch &&
-        !student.isAssignedToThisBatch
-    );
-    if (
-      movingStudents.length > 0 &&
-      !window.confirm('One or more students are already assigned to another batch. Do you want to move them to this batch?')
-    ) {
-      return;
-    }
-
+    if (!studentModalBatch || selectedStudentIds.length === 0) return toast.error('Please select students to assign');
     setAssigningStudents(true);
     try {
       const response = await assignStudentsToBatch(studentModalBatch._id, selectedStudentIds);
-      toast.success(response.message || 'Students assigned successfully. Existing batch courses have also been added to their My Courses.');
+      toast.success(response.message || 'Students assigned successfully');
       refreshBatchCount(studentModalBatch._id, response.data?.currentStudents ?? studentModalBatch.currentStudents);
       setSelectedStudentIds([]);
-      await Promise.all([
-        loadAssignableStudents(studentModalBatch),
-        loadAssignedStudents(studentModalBatch),
-      ]);
-    } catch (error: any) {
-      console.error('Error assigning students:', error);
-      toast.error(error.message || 'Failed to assign students');
+      await Promise.all([loadAssignableStudents(studentModalBatch), loadAssignedStudents(studentModalBatch)]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to assign students');
     } finally {
       setAssigningStudents(false);
     }
   };
 
   const handleRemoveStudents = async () => {
-    if (!studentModalBatch || selectedRemoveIds.length === 0) {
-      toast.error('Please select students to remove');
-      return;
-    }
-
+    if (!studentModalBatch || selectedRemoveIds.length === 0) return toast.error('Please select students to remove');
     setRemovingStudents(true);
     try {
       const response = await removeStudentsFromBatch(studentModalBatch._id, selectedRemoveIds);
-      toast.success(response.message || 'Students removed from batch. Existing course enrollments were not removed.');
+      toast.success(response.message || 'Students removed from batch');
       refreshBatchCount(studentModalBatch._id, response.data?.currentStudents ?? studentModalBatch.currentStudents);
       setSelectedRemoveIds([]);
-      await Promise.all([
-        loadAssignableStudents(studentModalBatch),
-        loadAssignedStudents(studentModalBatch),
-      ]);
-    } catch (error: any) {
-      console.error('Error removing students:', error);
-      toast.error(error.message || 'Failed to remove students');
+      await Promise.all([loadAssignableStudents(studentModalBatch), loadAssignedStudents(studentModalBatch)]);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove students');
     } finally {
       setRemovingStudents(false);
     }
@@ -308,1462 +426,703 @@ export function BatchManagement() {
 
   useEffect(() => {
     if (!studentModalBatch) return;
-    const timer = window.setTimeout(() => {
-      loadAssignableStudents(studentModalBatch, studentSearch, onlyUnassigned);
-    }, 300);
+    const timer = window.setTimeout(() => loadAssignableStudents(studentModalBatch, studentSearch, onlyUnassigned), 300);
     return () => window.clearTimeout(timer);
   }, [studentSearch, onlyUnassigned, studentModalBatch?._id]);
 
   useEffect(() => {
     if (!studentModalBatch) return;
-    const timer = window.setTimeout(() => {
-      loadAssignedStudents(studentModalBatch, assignedSearch);
-    }, 300);
+    const timer = window.setTimeout(() => loadAssignedStudents(studentModalBatch, assignedSearch), 300);
     return () => window.clearTimeout(timer);
   }, [assignedSearch, studentModalBatch?._id]);
 
-  // View batch students
-  const viewBatchDetails = async (batch: Batch) => {
-    setSelectedBatch(batch);
-    setShowBatchDetails(true);
-    setLoadingStudents(true);
-
-    try {
-      // Get students by batch ID using correct endpoint
-      const response = await getBatchStudents(batch._id, { limit: 100 });
-
-      if (response.success) {
-        setBatchStudents(response.data?.students || response.data || []);
-      } else {
-        setBatchStudents([]);
-      }
-    } catch (error: any) {
-      console.error('Error fetching batch students:', error);
-      setBatchStudents([]);
-      setBatchStudents([]);
-    } finally {
-      setLoadingStudents(false);
-    }
-  };
-
-  // View trainer details
-  const handleTrainerClick = async (trainer: any) => {
-    setSelectedTrainer(trainer); // set immediate basic info
-    setShowTrainerModal(true);
-    setLoadingTrainer(true);
-
-    try {
-      const response = await axiosInstance.get(`/admin/users/${trainer._id}`);
-      if (response.data.success && response.data.data) {
-        setSelectedTrainer(response.data.data);
-      }
-    } catch (error: any) {
-      console.error('Error fetching trainer details:', error);
-      toast.error('Failed to load full trainer profile details');
-    } finally {
-      setLoadingTrainer(false);
-    }
-  };
-
-  // ── Filtered batches ──────────────────────────────────────────────────────
-  const filteredBatches = batches.filter((batch) => {
-    if (!filters.search) return true;
-    const query = filters.search.toLowerCase();
-    return (
-      batch.name.toLowerCase().includes(query) ||
-      batch.code.toLowerCase().includes(query) ||
-      batch.department.name.toLowerCase().includes(query)
-    );
-  });
-
-  // ── Statistics ────────────────────────────────────────────────────────────
-  const totalBatches = batches.length;
-  const totalStudents = batches.reduce((sum, batch) => sum + batch.currentStudents, 0);
-  const fullBatches = batches.filter(
-    (b) => b.maxStudents && b.currentStudents >= b.maxStudents
-  ).length;
-
-  // ── Open modal for create/edit ────────────────────────────────────────────
-  const openModal = (batch?: Batch) => {
-    if (batch) {
-      setEditingBatch(batch);
-      setFormData({
-        name: batch.name,
-        code: batch.code,
-        department: batch.department._id,
-        year: batch.year,
-        startDate: batch.startDate ? batch.startDate.split('T')[0] : '',
-        endDate: batch.endDate ? batch.endDate.split('T')[0] : '',
-        maxStudents: batch.maxStudents || 50,
-        trainers: (batch as any).trainers?.map((t: any) => typeof t === 'string' ? t : t._id) || [],
-      });
-    } else {
-      setEditingBatch(null);
-      setFormData(EMPTY_FORM);
-    }
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingBatch(null);
-    setFormData(EMPTY_FORM);
-  };
-
-  // ── Handle form submission ────────────────────────────────────────────────
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validation
-    if (!formData.name.trim()) {
-      toast.error('Batch name is required');
-      return;
-    }
-    if (!formData.code.trim()) {
-      toast.error('Batch code is required');
-      return;
-    }
-    if (!formData.department) {
-      toast.error('Department is required');
-      return;
-    }
-    if (formData.year < 2020 || formData.year > 2100) {
-      toast.error('Year must be between 2020 and 2100');
-      return;
-    }
-    if (formData.maxStudents < 1) {
-      toast.error('Max students must be at least 1');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      if (editingBatch) {
-        // Update existing batch
-        const updateData: UpdateBatchData = {
-          name: formData.name.trim(),
-          code: formData.code.trim().toUpperCase(),
-          department: formData.department,
-          year: formData.year,
-          startDate: formData.startDate || undefined,
-          endDate: formData.endDate || undefined,
-          maxStudents: formData.maxStudents,
-          trainers: formData.trainers,
-        };
-        const response = await updateBatch(editingBatch._id, updateData);
-        setBatches((prev) =>
-          prev.map((b) => (b._id === editingBatch._id ? response.data : b))
-        );
-        toast.success('Batch updated successfully!', { icon: '✏️' });
-      } else {
-        // Create new batch
-        const createData: CreateBatchData = {
-          name: formData.name.trim(),
-          code: formData.code.trim().toUpperCase(),
-          department: formData.department,
-          year: formData.year,
-          startDate: formData.startDate || undefined,
-          endDate: formData.endDate || undefined,
-          maxStudents: formData.maxStudents,
-          trainers: formData.trainers,
-        };
-        const response = await createBatch(createData);
-        setBatches((prev) => [response.data, ...prev]);
-        toast.success('Batch created successfully!', { icon: '✅' });
-      }
-      closeModal();
-    } catch (error: any) {
-      console.error('Error saving batch:', error);
-      const errorMsg = error.message || 'Failed to save batch';
-      toast.error(errorMsg);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // ── Handle delete ─────────────────────────────────────────────────────────
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteBatch(id);
-      setBatches((prev) => prev.filter((b) => b._id !== id));
-      toast.success('Batch deleted successfully!', { icon: '🗑️' });
-      setDeleteConfirm(null);
-    } catch (error: any) {
-      console.error('Error deleting batch:', error);
-      const errorMsg = error.message || 'Failed to delete batch';
-      toast.error(errorMsg);
-    }
-  };
-
-  // ── Clear filters ─────────────────────────────────────────────────────────
-  const clearFilters = () => {
-    setFilters({ department: '', year: '', search: '' });
-  };
-
-  // ── Generate year options ─────────────────────────────────────────────────
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
+  const resetFilters = () => setFilters({ department: '', year: '', status: 'all', search: '' });
 
   return (
-    <div className="space-y-6">
-      {/* Breathtaking Welcome Banner */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl">
-        {/* Ambient background blur circles */}
-        <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
-        
-        {/* Interactive Grid overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
+      <BatchHeader onCreate={() => openModal()} onRefresh={() => fetchBatches(true)} refreshing={refreshing} />
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 relative z-10">
-          <div className="flex items-center gap-5 text-left">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-400/20">
-              <GraduationCap className="w-7 h-7 animate-pulse" />
-            </div>
-            <div>
-              <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                Cohort & <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-indigo-300">Batch Management</span>
-              </h2>
-              <p className="text-indigo-200/70 mt-1 text-sm font-medium">
-                Organize educational tracks, monitor trainer logs, and adjust cohort student limits.
-              </p>
-            </div>
-          </div>
+      {loading ? (
+        <BatchSkeleton />
+      ) : error ? (
+        <ErrorState onRetry={() => fetchBatches()} />
+      ) : (
+        <>
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <BatchStatsCard title="Total Batches" value={stats.total} subtitle="Running batches" icon={BookOpen} tone="purple" progress={100} />
+            <BatchStatsCard title="Active Learners" value={stats.learners} subtitle="Across all batches" icon={Users} tone="green" progress={Math.min(100, stats.learners)} />
+            <BatchStatsCard title="Capacity Utilization" value={`${stats.utilization}%`} subtitle="Average occupancy" icon={BarChart3} tone="blue" progress={stats.utilization} />
+            <BatchStatsCard title="Completed Batches" value={stats.completed} subtitle="Archived successfully" icon={Archive} tone="orange" progress={stats.total ? Math.round((stats.completed / stats.total) * 100) : 0} />
+          </section>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={fetchBatches}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 backdrop-blur-md rounded-2xl text-indigo-100 text-xs font-bold hover:bg-white/10 hover:text-white transition-all shadow-md"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={() => openModal()}
-              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white px-5 py-2.5 rounded-2xl text-xs font-bold hover:shadow-lg hover:shadow-indigo-500/30 transition-all border border-indigo-400/20"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Batch
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Premium Statistics Cards Grid */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {[
-          { label: 'Total Active Batches', value: totalBatches, icon: BookOpen, accent: '#6366f1', tone: 'from-indigo-500/10 via-purple-500/5 to-transparent', shadowColor: 'rgba(99, 102, 241, 0.08)' },
-          { label: 'Total Enrolled Students', value: totalStudents, icon: Users, accent: '#10b981', tone: 'from-emerald-500/10 via-teal-500/5 to-transparent', shadowColor: 'rgba(16, 185, 129, 0.08)' },
-          { label: 'Full Capacity Batches', value: fullBatches, icon: Building2, accent: '#ef4444', tone: 'from-rose-500/10 via-red-500/5 to-transparent', shadowColor: 'rgba(239, 68, 68, 0.08)' }
-        ].map((card, idx) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={idx}
-              className="relative group rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden text-left"
-              style={{ boxShadow: `0 4px 20px -2px ${card.shadowColor}` }}
-            >
-              {/* Decorative background glow */}
-              <div className={`absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-gradient-to-br ${card.tone} opacity-10 group-hover:scale-150 transition-transform duration-500 blur-xl`} />
-              
-              <div className="flex items-center justify-between mb-3 relative z-10">
-                <div className="w-11 h-11 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:scale-110 transition-transform duration-300">
-                  <Icon className="w-5.5 h-5.5" style={{ color: card.accent }} />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Telemetry Active</span>
-              </div>
-              <div className="relative z-10">
-                <p className="text-3xl font-black text-slate-900 tracking-tight">{card.value}</p>
-                <p className="text-xs font-bold text-slate-400 mt-1">{card.label}</p>
-              </div>
-            </div>
-          );
-        })}
-      </section>
-
-      {/* Interactive Filters Panel */}
-      <section className="bg-white rounded-3xl border border-slate-200/60 p-4 shadow-sm text-left">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Custom Search Input */}
-          <div className="relative md:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search cohorts by name, code, or departments..."
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-semibold placeholder-slate-400 text-slate-700 transition-all"
-            />
-          </div>
-
-          {/* Department Filter */}
-          <select
-            value={filters.department}
-            onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-            className="px-4 py-2.5 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-bold text-slate-600 bg-white cursor-pointer transition-all"
-          >
-            <option value="">All Departments</option>
-            {departments.map((dept) => (
-              <option key={dept._id} value={dept._id}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Year Filter */}
-          <select
-            value={filters.year}
-            onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-            className="px-4 py-2.5 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-bold text-slate-600 bg-white cursor-pointer transition-all"
-          >
-            <option value="">All Years</option>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Clear Filters Accent Tag */}
-        {(filters.department || filters.year || filters.search) && (
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-3 text-xs text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            Reset active filters
-          </button>
-        )}
-      </section>
-
-      {/* Breathtaking Batches Table Grid */}
-      <section className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden text-left">
-        {loading ? (
-          <div className="py-20 flex flex-col items-center gap-3 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-            <p className="text-sm font-bold">Synchronizing cohorts...</p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-100">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Batch Details
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Department Assignment
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Year
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Assigned Trainers
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Student Capacity Limit
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-black text-slate-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredBatches.map((batch) => {
-                    const capacity = batch.maxStudents || 0;
-                    const current = batch.currentStudents;
-                    const percentage = capacity > 0 ? (current / capacity) * 100 : 0;
-                    const isFull = capacity > 0 && current >= capacity;
-
-                    return (
-                      <tr key={batch._id} className="hover:bg-slate-55/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-extrabold text-slate-800 text-sm">{batch.name}</p>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 text-[10px] font-bold mt-1">
-                              {batch.code}
-                            </span>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
-                                {batch.assignedCoursesCount ?? batch.courses?.length ?? 0} courses
-                              </span>
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold border ${
-                                batch.isActive
-                                  ? 'bg-green-50 text-green-700 border-green-100'
-                                  : 'bg-slate-50 text-slate-500 border-slate-100'
-                              }`}>
-                                {batch.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-slate-400" />
-                            <span className="text-sm font-semibold text-slate-600">
-                              {batch.department.name}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-slate-400" />
-                            <span className="text-sm font-semibold text-slate-600">{batch.year}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1.5">
-                            {batch.trainers && batch.trainers.length > 0 ? (
-                              batch.trainers.map((trainer: any, idx: number) => {
-                                const initials = `${trainer.firstName?.[0] || ''}${trainer.lastName?.[0] || ''}` || 'T';
-                                return (
-                                  <span
-                                    key={idx}
-                                    onClick={() => handleTrainerClick(trainer)}
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold cursor-pointer transition-all border border-violet-100 hover:border-violet-200 shadow-sm"
-                                    title="View Trainer Details"
-                                  >
-                                    <div className="w-4 h-4 rounded-full bg-violet-600 text-white text-[8px] font-black flex items-center justify-center">
-                                      {initials}
-                                    </div>
-                                    {trainer.firstName} {trainer.lastName}
-                                  </span>
-                                );
-                              })
-                            ) : (
-                              <span className="text-xs text-slate-400 font-medium italic">No assigned trainers</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-1.5 max-w-[140px]">
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-                              <span>
-                                {current} / {capacity}
-                              </span>
-                              <span className={isFull ? 'text-red-500 font-extrabold' : 'text-slate-500'}>
-                                {percentage.toFixed(0)}%
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${
-                                  isFull
-                                    ? 'bg-gradient-to-r from-red-500 to-rose-500'
-                                    : percentage > 75
-                                    ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-                                    : 'bg-gradient-to-r from-emerald-500 to-teal-500'
-                                }`}
-                                style={{ width: `${Math.min(percentage, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openStudentAssignmentModal(batch, 'assign')}
-                              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 text-xs font-extrabold text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-colors"
-                              title="Assign Students"
-                            >
-                              <UserPlus className="w-4 h-4" />
-                              Assign Students
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openStudentAssignmentModal(batch, 'assigned')}
-                              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-150 flex items-center justify-center transition-colors group"
-                              title="View cohort students"
-                            >
-                              <Eye className="w-4 h-4 text-slate-400 group-hover:text-indigo-600" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openModal(batch)}
-                              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-violet-50 border border-slate-150 flex items-center justify-center transition-colors group"
-                              title="Edit cohort properties"
-                            >
-                              <Edit2 className="w-4 h-4 text-slate-400 group-hover:text-violet-600" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteConfirm(batch._id)}
-                              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-150 flex items-center justify-center transition-colors group"
-                              title="Delete cohort"
-                            >
-                              <Trash2 className="w-4 h-4 text-slate-400 group-hover:text-rose-600" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {filteredBatches.length === 0 && (
-              <div className="py-20 text-center text-slate-400">
-                <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-25" />
-                <p className="font-extrabold text-slate-600 text-sm">
-                  {filters.search || filters.department || filters.year
-                    ? 'No batches match your active filters'
-                    : 'No cohorts established yet'}
-                </p>
-                {!filters.search && !filters.department && !filters.year && (
-                  <button
-                    type="button"
-                    onClick={() => openModal()}
-                    className="mt-3 text-xs font-black text-indigo-600 hover:text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 px-3.5 py-2 rounded-xl border border-indigo-100 transition-colors"
-                  >
-                    Setup Your First Batch Cohort
-                  </button>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </section>
-
-      {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={closeModal}
+          <BatchFilterBar
+            filters={filters}
+            departments={departments}
+            years={years}
+            open={filtersOpen}
+            setOpen={setFiltersOpen}
+            setFilters={setFilters}
+            reset={resetFilters}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 sticky top-0 bg-white">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <BookOpen className="w-6 h-6 text-indigo-600" />
-                  {editingBatch ? 'Edit Batch' : 'Add Batch'}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {editingBatch
-                    ? 'Update batch information'
-                    : 'Create a new batch'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Batch Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="e.g., Batch A - 2026"
-                    maxLength={100}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                    required
-                  />
-                </div>
+          <QuickChips value={filters.status} onChange={(status) => setFilters((prev) => ({ ...prev, status }))} />
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Batch Code <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        code: e.target.value.toUpperCase(),
-                      })
-                    }
-                    placeholder="e.g., CS-2026-A"
-                    maxLength={20}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm uppercase"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Department <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.department}
-                    onChange={(e) =>
-                      setFormData({ ...formData, department: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                    required
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id} value={dept._id}>
-                        {dept.name} ({dept.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Year <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.year}
-                    onChange={(e) =>
-                      setFormData({ ...formData, year: parseInt(e.target.value) })
-                    }
-                    min={2020}
-                    max={2100}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, startDate: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) =>
-                      setFormData({ ...formData, endDate: e.target.value })
-                    }
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Maximum Students
-                </label>
-                <input
-                  type="number"
-                  value={formData.maxStudents}
-                  onChange={(e) =>
-                    setFormData({ ...formData, maxStudents: parseInt(e.target.value) })
-                  }
-                  min={1}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+          {pageBatches.length ? (
+            <>
+              <div className="hidden md:block">
+                <BatchTable
+                  batches={pageBatches}
+                  activeMenu={activeMenu}
+                  actionLoading={actionLoading}
+                  onMenu={setActiveMenu}
+                  onView={viewBatchDetails}
+                  onEdit={openModal}
+                  onAssign={openStudentAssignmentModal}
+                  onDuplicate={duplicateBatch}
+                  onArchive={archiveBatch}
+                  onDelete={setDeleteTarget}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Maximum number of students allowed in this batch
-                </p>
               </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Assign Trainers
-                </label>
-                <div className="border border-gray-300 rounded-xl p-3 max-h-48 overflow-y-auto">
-                  {trainers.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-2">No trainers available</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {trainers.map((trainer) => (
-                        <label
-                          key={trainer._id}
-                          className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={formData.trainers.includes(trainer._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  trainers: [...formData.trainers, trainer._id],
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  trainers: formData.trainers.filter((id) => id !== trainer._id),
-                                });
-                              }
-                            }}
-                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                          />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              {trainer.firstName} {trainer.lastName}
-                            </p>
-                            <p className="text-xs text-gray-500">{trainer.email}</p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Select trainers who will teach this batch ({formData.trainers.length} selected)
-                </p>
+              <div className="grid grid-cols-1 gap-4 md:hidden">
+                {pageBatches.map((batch) => (
+                  <BatchCard
+                    key={batch._id}
+                    batch={batch}
+                    activeMenu={activeMenu}
+                    actionLoading={actionLoading}
+                    onMenu={setActiveMenu}
+                    onView={viewBatchDetails}
+                    onEdit={openModal}
+                    onAssign={openStudentAssignmentModal}
+                    onDuplicate={duplicateBatch}
+                    onArchive={archiveBatch}
+                    onDelete={setDeleteTarget}
+                  />
+                ))}
               </div>
+            </>
+          ) : (
+            <BatchEmptyState onCreate={() => openModal()} />
+          )}
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-all"
-                  disabled={submitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-xl font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : editingBatch ? (
-                    'Update Batch'
-                  ) : (
-                    'Create Batch'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setDeleteConfirm(null)}
+          <BatchPagination
+            page={safePage}
+            totalPages={totalPages}
+            rowsPerPage={rowsPerPage}
+            total={filteredBatches.length}
+            start={filteredBatches.length ? start + 1 : 0}
+            end={Math.min(start + rowsPerPage, filteredBatches.length)}
+            onPage={setPage}
+            onRowsPerPage={setRowsPerPage}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">
-              Delete Batch?
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete this batch? This action cannot be
-              undone. If the batch has students, deletion will fail.
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition-all"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+
+          <QuickActions onCreate={() => openModal()} onAssign={() => pageBatches[0] && openStudentAssignmentModal(pageBatches[0])} />
+        </>
       )}
 
-      {/* Assign Students Modal */}
+      {showModal && (
+        <BatchFormModal
+          editingBatch={editingBatch}
+          formData={formData}
+          setFormData={setFormData}
+          departments={departments}
+          trainers={trainers}
+          submitting={submitting}
+          onClose={closeModal}
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteDialog
+          batch={deleteTarget}
+          loading={actionLoading === deleteTarget._id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+
+      {selectedBatch && (
+        <BatchDetailsModal
+          batch={selectedBatch}
+          students={batchStudents}
+          loading={loadingStudents}
+          onClose={() => setSelectedBatch(null)}
+          onAssign={() => {
+            openStudentAssignmentModal(selectedBatch);
+            setSelectedBatch(null);
+          }}
+        />
+      )}
+
       {studentModalBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/55 backdrop-blur-sm"
-            onClick={closeStudentAssignmentModal}
+        <StudentAssignmentModal
+          batch={studentModalBatch}
+          tab={studentModalTab}
+          setTab={setStudentModalTab}
+          assignableStudents={assignableStudents}
+          assignedStudents={assignedStudents}
+          selectedStudentIds={selectedStudentIds}
+          selectedRemoveIds={selectedRemoveIds}
+          setSelectedStudentIds={setSelectedStudentIds}
+          setSelectedRemoveIds={setSelectedRemoveIds}
+          studentSearch={studentSearch}
+          assignedSearch={assignedSearch}
+          setStudentSearch={setStudentSearch}
+          setAssignedSearch={setAssignedSearch}
+          onlyUnassigned={onlyUnassigned}
+          setOnlyUnassigned={setOnlyUnassigned}
+          loadingAssignable={loadingAssignable}
+          loadingAssigned={loadingAssigned}
+          assigningStudents={assigningStudents}
+          removingStudents={removingStudents}
+          onAssign={handleAssignStudents}
+          onRemove={handleRemoveStudents}
+          onClose={() => setStudentModalBatch(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function BatchHeader({ onCreate, onRefresh, refreshing }: { onCreate: () => void; onRefresh: () => void; refreshing: boolean }) {
+  return (
+    <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Batch Management</h1>
+        <p className="mt-1 text-sm text-slate-600">Manage learner batches and trainer assignments.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={onRefresh} disabled={refreshing} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-violet-100 disabled:opacity-60">
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+        <button type="button" onClick={() => toast.info('Export will be available once backend export is connected.')} className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-violet-100">
+          <Download className="h-4 w-4" />
+          Export
+        </button>
+        <button type="button" onClick={onCreate} className="inline-flex h-10 items-center gap-2 rounded-lg bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-100">
+          <Plus className="h-4 w-4" />
+          Create Batch
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function BatchStatsCard({ title, value, subtitle, icon: Icon, tone, progress }: { title: string; value: number | string; subtitle: string; icon: any; tone: 'purple' | 'green' | 'blue' | 'orange'; progress: number }) {
+  const tones = {
+    purple: 'bg-violet-50 text-violet-700 border-violet-100',
+    green: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    blue: 'bg-blue-50 text-blue-700 border-blue-100',
+    orange: 'bg-orange-50 text-orange-700 border-orange-100',
+  };
+  const bars = {
+    purple: 'bg-violet-600',
+    green: 'bg-emerald-600',
+    blue: 'bg-blue-600',
+    orange: 'bg-orange-500',
+  };
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="flex items-start justify-between">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-lg border ${tones[tone]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <span className="text-xs font-bold text-slate-400">{progress}%</span>
+      </div>
+      <p className="mt-4 text-3xl font-bold tracking-tight text-slate-950">{value}</p>
+      <h2 className="mt-1 text-sm font-semibold text-slate-800">{title}</h2>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      <div className="mt-4 h-1.5 rounded-full bg-slate-100">
+        <div className={`h-1.5 rounded-full ${bars[tone]}`} style={{ width: `${Math.min(100, progress)}%` }} />
+      </div>
+    </article>
+  );
+}
+
+function BatchFilterBar({ filters, departments, years, open, setOpen, setFilters, reset }: { filters: Filters; departments: Department[]; years: number[]; open: boolean; setOpen: (open: boolean) => void; setFilters: React.Dispatch<React.SetStateAction<Filters>>; reset: () => void }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <button type="button" onClick={() => setOpen(!open)} className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-violet-100">
+          Filters
+          <ChevronDown className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} />
+        </button>
+        <label className="relative w-full lg:max-w-lg">
+          <span className="sr-only">Search batches</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={filters.search}
+            onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
+            placeholder="Search by batch name, department, trainer, or code..."
+            className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-slate-800 outline-none transition focus:border-violet-300 focus:bg-white focus:ring-4 focus:ring-violet-100"
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col border border-slate-200">
-            <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-slate-200 bg-white">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                  <UserPlus className="w-6 h-6 text-emerald-600" />
-                  Assign Students to Batch
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  {studentModalBatch.name} | {studentModalBatch.code} | {studentModalBatch.department.name} | {studentModalBatch.currentStudents} / {studentModalBatch.maxStudents || 'No limit'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeStudentAssignmentModal}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-500" />
-              </button>
-            </div>
+          {filters.search && (
+            <button type="button" onClick={() => setFilters((prev) => ({ ...prev, search: '' }))} aria-label="Clear search" className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </label>
+      </div>
+      {open && (
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_1fr_auto_auto]">
+          <Select label="Department" value={filters.department} onChange={(value) => setFilters((prev) => ({ ...prev, department: value }))}>
+            <option value="">All Departments</option>
+            {departments.map((department) => <option key={department._id} value={department._id}>{department.name}</option>)}
+          </Select>
+          <Select label="Year" value={filters.year} onChange={(value) => setFilters((prev) => ({ ...prev, year: value }))}>
+            <option value="">All Years</option>
+            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </Select>
+          <Select label="Status" value={filters.status} onChange={(value) => setFilters((prev) => ({ ...prev, status: value as BatchStatus }))}>
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </Select>
+          <button type="button" onClick={reset} className="h-11 self-end rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-violet-100">Reset</button>
+          <button type="button" className="h-11 self-end rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200">Apply Filters</button>
+        </div>
+      )}
+    </section>
+  );
+}
 
-            <div className="px-6 pt-4">
-              <div className="rounded-2xl border border-sky-100 bg-sky-50 p-4 flex items-start gap-3">
-                <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-black text-sky-900">Batch Course Auto-Enrollment</p>
-                  <p className="text-sm text-sky-800 mt-1">
-                    When students are assigned to this batch, they will automatically receive all courses already linked to this batch in their My Courses. Future batch courses will also be added automatically.
-                  </p>
-                  {(studentModalBatch.assignedCoursesCount ?? studentModalBatch.courses?.length ?? 0) === 0 && (
-                    <p className="text-xs font-semibold text-sky-700 mt-2">
-                      This batch currently has no assigned courses. Students will receive courses automatically when a teacher assigns a course to this batch.
-                    </p>
-                  )}
-                </div>
-              </div>
+function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
+  return (
+    <label className="text-sm font-medium text-slate-700">
+      {label}
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100">
+        {children}
+      </select>
+    </label>
+  );
+}
 
-              <div className="mt-4 flex flex-wrap gap-2 border-b border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setStudentModalTab('assign')}
-                  className={`px-4 py-2 text-sm font-black border-b-2 transition-colors ${
-                    studentModalTab === 'assign'
-                      ? 'border-emerald-600 text-emerald-700'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Assign New Students
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStudentModalTab('assigned')}
-                  className={`px-4 py-2 text-sm font-black border-b-2 transition-colors ${
-                    studentModalTab === 'assigned'
-                      ? 'border-indigo-600 text-indigo-700'
-                      : 'border-transparent text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Assigned Students
-                </button>
-              </div>
-            </div>
+function QuickChips({ value, onChange }: { value: BatchStatus; onChange: (status: BatchStatus) => void }) {
+  const chips: Array<{ value: BatchStatus; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'active', label: 'Active' },
+    { value: 'draft', label: 'Draft' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'archived', label: 'Archived' },
+  ];
+  return (
+    <div className="flex flex-wrap gap-2">
+      {chips.map((chip) => (
+        <button key={chip.value} type="button" onClick={() => onChange(chip.value)} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition focus:outline-none focus:ring-4 focus:ring-violet-100 ${value === chip.value ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              {studentModalTab === 'assign' ? (
-                <div className="space-y-4">
-                  <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        value={studentSearch}
-                        onChange={(e) => setStudentSearch(e.target.value)}
-                        placeholder="Search by name, email, roll no, enrollment no..."
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
-                      />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setOnlyUnassigned(true)}
-                        className={`px-3 py-2 rounded-xl text-xs font-black border ${
-                          onlyUnassigned ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        Unassigned Students only
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOnlyUnassigned(false)}
-                        className={`px-3 py-2 rounded-xl text-xs font-black border ${
-                          !onlyUnassigned ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        All Students
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStudentIds(assignableStudents.map((student) => student._id))}
-                        className="px-3 py-2 rounded-xl text-xs font-black border border-slate-200 text-slate-700 hover:bg-slate-50"
-                      >
-                        Select All Visible
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStudentIds([])}
-                        className="px-3 py-2 rounded-xl text-xs font-black border border-slate-200 text-slate-700 hover:bg-slate-50"
-                      >
-                        Clear Selection
-                      </button>
-                    </div>
-                  </div>
+type BatchActionProps = {
+  activeMenu: string | null;
+  actionLoading: string | null;
+  onMenu: (id: string | null) => void;
+  onView: (batch: Batch) => void;
+  onEdit: (batch: Batch) => void;
+  onAssign: (batch: Batch, tab?: StudentModalTab) => void;
+  onDuplicate: (batch: Batch) => void;
+  onArchive: (batch: Batch) => void;
+  onDelete: (batch: Batch) => void;
+};
 
-                  {loadingAssignable ? (
-                    <div className="py-14 flex items-center justify-center gap-3 text-slate-500">
-                      <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-                      <span className="text-sm font-semibold">Loading students...</span>
-                    </div>
-                  ) : assignableStudents.length === 0 ? (
-                    <div className="py-14 text-center rounded-2xl border border-dashed border-slate-200">
-                      <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                      <p className="text-sm font-bold text-slate-600">
-                        {onlyUnassigned
-                          ? 'All available students are already assigned or no unassigned students found.'
-                          : 'No students found. Try changing your search or filters.'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {assignableStudents.map((student) => {
-                        const selected = selectedStudentIds.includes(student._id);
-                        return (
-                          <label
-                            key={student._id}
-                            className={`flex items-start gap-3 rounded-2xl border p-4 cursor-pointer transition-all ${
-                              selected
-                                ? 'border-emerald-300 bg-emerald-50 shadow-sm'
-                                : 'border-slate-200 bg-white hover:border-emerald-200'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selected}
-                              onChange={() => toggleStudentSelection(student._id)}
-                              className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-black text-slate-900 truncate">{student.name}</p>
-                                {student.assignedBatchName && !student.isAssignedToThisBatch && (
-                                  <span className="inline-flex items-center rounded-lg bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700 border border-amber-100">
-                                    Assigned to: {student.assignedBatchName}
-                                  </span>
-                                )}
-                                {student.isAssignedToThisBatch && (
-                                  <span className="inline-flex items-center rounded-lg bg-green-50 px-2 py-0.5 text-[10px] font-black text-green-700 border border-green-100">
-                                    In this batch
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-slate-500">
-                                <span className="truncate">{student.email || '-'}</span>
-                                <span>{student.phone || student.mobile || '-'}</span>
-                                <span>Enrollment: {student.enrollmentNumber || student.uniqueId || '-'}</span>
-                                <span>Roll: {student.rollNumber || '-'}</span>
-                                <span className="sm:col-span-2">
-                                  Department: {typeof student.department === 'object' ? student.department?.name : '-'}
-                                </span>
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        value={assignedSearch}
-                        onChange={(e) => setAssignedSearch(e.target.value)}
-                        placeholder="Search assigned students..."
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
-                      />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRemoveIds(assignedStudents.map((student) => student._id))}
-                        className="px-3 py-2 rounded-xl text-xs font-black border border-slate-200 text-slate-700 hover:bg-slate-50"
-                      >
-                        Select All Visible
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRemoveIds([])}
-                        className="px-3 py-2 rounded-xl text-xs font-black border border-slate-200 text-slate-700 hover:bg-slate-50"
-                      >
-                        Clear Selection
-                      </button>
-                    </div>
-                  </div>
+function BatchTable({ batches, ...actions }: { batches: Batch[] } & BatchActionProps) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="min-w-[1040px] w-full border-collapse text-left">
+          <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-5 py-3">Batch</th>
+              <th className="px-4 py-3">Department</th>
+              <th className="px-4 py-3">Year</th>
+              <th className="px-4 py-3">Trainer</th>
+              <th className="px-4 py-3">Enrollment</th>
+              <th className="px-4 py-3">Capacity</th>
+              <th className="px-4 py-3">Progress</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-5 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {batches.map((batch) => (
+              <BatchRow key={batch._id} batch={batch} {...actions} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
-                  {loadingAssigned ? (
-                    <div className="py-14 flex items-center justify-center gap-3 text-slate-500">
-                      <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                      <span className="text-sm font-semibold">Loading assigned students...</span>
-                    </div>
-                  ) : assignedStudents.length === 0 ? (
-                    <div className="py-14 text-center rounded-2xl border border-dashed border-slate-200">
-                      <Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                      <p className="text-sm font-bold text-slate-600">No students found. Try changing your search or filters.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="w-full">
-                        <thead className="bg-slate-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase">Select</th>
-                            <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase">Name</th>
-                            <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase">Email</th>
-                            <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase">Roll / Enrollment</th>
-                            <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase">Courses</th>
-                            <th className="px-4 py-3 text-left text-xs font-black text-slate-500 uppercase">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {assignedStudents.map((student) => (
-                            <tr key={student._id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedRemoveIds.includes(student._id)}
-                                  onChange={() => toggleRemoveSelection(student._id)}
-                                  className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                                />
-                              </td>
-                              <td className="px-4 py-3 font-bold text-slate-900">{student.name}</td>
-                              <td className="px-4 py-3 text-sm text-slate-600">{student.email || '-'}</td>
-                              <td className="px-4 py-3 text-sm text-slate-600">
-                                {student.rollNumber || '-'} / {student.enrollmentNumber || student.uniqueId || '-'}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-slate-600">{student.courseCount ?? student.enrolledCourses?.length ?? 0}</td>
-                              <td className="px-4 py-3">
-                                <span className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2 py-1 text-xs font-black text-green-700 border border-green-100">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Assigned
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                    <p className="text-xs font-semibold text-amber-800">
-                      Removing a student clears the batch assignment only. Existing course enrollments are not removed.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-sm font-bold text-slate-600">
-                {studentModalTab === 'assign'
-                  ? `${selectedStudentIds.length} students selected`
-                  : `${selectedRemoveIds.length} students selected for removal`}
-              </p>
-              <div className="flex flex-wrap gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={closeStudentAssignmentModal}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-bold hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                {studentModalTab === 'assign' ? (
-                  <button
-                    type="button"
-                    onClick={handleAssignStudents}
-                    disabled={assigningStudents || selectedStudentIds.length === 0}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-black hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {assigningStudents && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Assign Students
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleRemoveStudents}
-                    disabled={removingStudents || selectedRemoveIds.length === 0}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-black hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {removingStudents && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Remove from Batch
-                  </button>
-                )}
-              </div>
+function BatchRow({ batch, ...actions }: { batch: Batch } & BatchActionProps) {
+  const status = getBatchStatus(batch);
+  const trainers = batch.trainers || [];
+  return (
+    <tr className="transition hover:bg-slate-50">
+      <td className="px-5 py-4">
+        <div className="flex items-center gap-3">
+          <BatchAvatar batch={batch} />
+          <div>
+            <p className="font-semibold text-slate-950">{batch.name}</p>
+            <p className="text-xs text-slate-500">{batch.code}</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              <DepartmentBadge value={batch.department?.name || 'Department'} />
+              <StatusBadge status={status} />
             </div>
           </div>
         </div>
-      )}
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <Building2 className="h-4 w-4 text-slate-400" />
+          {batch.department?.name || 'Department'}
+        </div>
+      </td>
+      <td className="px-4 py-4 text-sm font-semibold text-slate-700">{batch.year}</td>
+      <td className="px-4 py-4">
+        {trainers.length ? <TrainerAvatar trainer={trainers[0]} /> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500">No Trainer Assigned</span>}
+      </td>
+      <td className="px-4 py-4 text-sm text-slate-600">
+        <p className="font-semibold text-slate-900">{batch.currentStudents || 0} Learners</p>
+        <p className="text-xs text-slate-500">Capacity {batch.maxStudents || 0}</p>
+      </td>
+      <td className="px-4 py-4"><CapacityBar value={occupancy(batch)} /></td>
+      <td className="px-4 py-4 text-sm text-slate-600">{batch.assignedCoursesCount || batch.courses?.length || 0} courses</td>
+      <td className="px-4 py-4"><StatusBadge status={status} /></td>
+      <td className="px-5 py-4"><BatchActionMenu batch={batch} {...actions} /></td>
+    </tr>
+  );
+}
 
-      {/* Batch Students Details Modal */}
-      {showBatchDetails && selectedBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowBatchDetails(false)}
-          />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 sticky top-0 bg-white">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-blue-600" />
-                  Batch Students Details
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {selectedBatch.name} ({selectedBatch.code})
-                </p>
-                <div className="flex items-center gap-4 mt-2">
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs">
-                    <Building2 className="w-3 h-3 mr-1" />
-                    {selectedBatch.department.name}
-                  </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {selectedBatch.year}
-                  </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs">
-                    {batchStudents.length} Students
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowBatchDetails(false)}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Students List */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {loadingStudents ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-                  <span className="ml-3 text-gray-600">Loading students...</span>
-                </div>
-              ) : batchStudents.length > 0 ? (
-                <div className="space-y-4">
-                  {/* Stats Row */}
-                  <div className="grid grid-cols-4 gap-4 mb-6">
-                    <div className="bg-blue-50 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-blue-600">{batchStudents.length}</p>
-                      <p className="text-sm text-gray-600">Total</p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-green-600">
-                        {batchStudents.filter((s: any) => s.isEmailVerified).length}
-                      </p>
-                      <p className="text-sm text-gray-600">Verified</p>
-                    </div>
-                    <div className="bg-yellow-50 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-yellow-600">
-                        {batchStudents.filter((s: any) => !s.isEmailVerified).length}
-                      </p>
-                      <p className="text-sm text-gray-600">Pending</p>
-                    </div>
-                    <div className="bg-purple-50 rounded-xl p-4 text-center">
-                      <p className="text-2xl font-bold text-purple-600">
-                        {batchStudents.reduce((acc, s: any) => acc + (s.enrolledCourses?.length || 0), 0)}
-                      </p>
-                      <p className="text-sm text-gray-600">Enrollments</p>
-                    </div>
-                  </div>
-
-                  {/* Student Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">S.No</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Email</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Mobile</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Designation</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Verification</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {batchStudents.map((student: any, index: number) => (
-                          <tr key={student._id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 text-sm text-gray-600">{index + 1}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-                                  {student.firstName?.[0] || '?'}{student.lastName?.[0] || ''}
-                                </div>
-                                <span className="font-medium text-gray-900">
-                                  {student.firstName} {student.lastName}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{student.email}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{student.mobile || '-'}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">{student.designation || 'Student'}</td>
-                            <td className="px-4 py-3">
-                              {student.isActive ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
-                                  Active
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700">
-                                  Inactive
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {student.isEmailVerified ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
-                                  Verified
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700">
-                                  Pending
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No students found in this batch</p>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Showing {batchStudents.length} student{batchStudents.length !== 1 ? 's' : ''} in this batch
-                </p>
-                <button
-                  onClick={() => setShowBatchDetails(false)}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
+function BatchCard({ batch, ...actions }: { batch: Batch } & BatchActionProps) {
+  const status = getBatchStatus(batch);
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <BatchAvatar batch={batch} />
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-bold text-slate-950">{batch.name}</h2>
+            <p className="text-xs text-slate-500">{batch.code}</p>
           </div>
         </div>
-      )}
+        <BatchActionMenu batch={batch} {...actions} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <DepartmentBadge value={batch.department?.name || 'Department'} />
+        <StatusBadge status={status} />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-slate-50 p-3 text-center">
+        <Metric label="Year" value={batch.year} />
+        <Metric label="Learners" value={batch.currentStudents || 0} />
+        <Metric label="Capacity" value={batch.maxStudents || 0} />
+      </div>
+      <div className="mt-4">
+        <CapacityBar value={occupancy(batch)} />
+      </div>
+    </article>
+  );
+}
 
-      {/* Trainer Profile Details Modal */}
-      {showTrainerModal && selectedTrainer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-md"
-            onClick={() => setShowTrainerModal(false)}
-          />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all animate-in zoom-in-95 duration-200 border border-purple-50">
-            {/* Top Premium Color Banner */}
-            <div className="h-32 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 relative">
-              <button
-                type="button"
-                onClick={() => setShowTrainerModal(false)}
-                className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-sm transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Profile Avatar Overlay */}
-            <div className="px-6 pb-6 relative">
-              <div className="absolute -top-12 left-6">
-                <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-purple-500 to-indigo-600 text-white flex items-center justify-center text-3xl font-extrabold shadow-xl border-4 border-white">
-                  {selectedTrainer.firstName?.charAt(0)}{selectedTrainer.lastName?.charAt(0)}
-                </div>
-              </div>
-
-              {/* Header Spacer */}
-              <div className="h-16" />
-
-              {/* Trainer Title Area */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900">
-                    {selectedTrainer.firstName} {selectedTrainer.lastName}
-                  </h3>
-                  <p className="text-sm font-medium text-purple-600 mt-1">
-                    {selectedTrainer.designation || 'Expert Trainer'}
-                  </p>
-                </div>
-                <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                  selectedTrainer.isActive !== false
-                    ? 'bg-green-50 text-green-700 border border-green-200'
-                    : 'bg-gray-50 text-gray-700 border border-gray-200'
-                }`}>
-                  {selectedTrainer.isActive !== false ? 'Active Faculty' : 'Inactive'}
-                </span>
-              </div>
-
-              {/* Main Content Grid */}
-              <div className="mt-6 space-y-4">
-                {loadingTrainer ? (
-                  <div className="py-12 flex flex-col items-center justify-center gap-3 text-purple-500">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                    <p className="text-sm font-medium text-gray-500">Loading complete trainer profile...</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Information Grid */}
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Email Card */}
-                      <div className="p-3 bg-purple-50/50 rounded-2xl border border-purple-100/50">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Email Address</p>
-                        <div className="flex items-center gap-1.5 mt-1.5 overflow-hidden">
-                          <Mail className="w-4 h-4 text-purple-600 shrink-0" />
-                          <a
-                            href={`mailto:${selectedTrainer.email}`}
-                            className="text-xs font-semibold text-purple-700 hover:underline truncate"
-                          >
-                            {selectedTrainer.email}
-                          </a>
-                        </div>
-                      </div>
-
-                      {/* Phone Card */}
-                      <div className="p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Mobile Number</p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <Phone className="w-4 h-4 text-indigo-600 shrink-0" />
-                          <span className="text-xs font-semibold text-indigo-700">
-                            {selectedTrainer.mobile || selectedTrainer.phone || '—'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Organization Card */}
-                      <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100/50">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Organization</p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="text-xs font-semibold text-blue-700">
-                            {selectedTrainer.organization || 'CEAS LMS Portal'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Member Since Card */}
-                      <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Faculty Since</p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
-                          <Calendar className="w-4 h-4 text-gray-500 shrink-0" />
-                          <span className="text-xs font-semibold text-gray-700">
-                            {selectedTrainer.createdAt
-                              ? new Date(selectedTrainer.createdAt).toLocaleDateString(undefined, {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                })
-                              : 'Jan 2026'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick Bio/Expertise */}
-                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Expertise & Designation</p>
-                      <p className="text-xs text-gray-600 font-medium leading-relaxed mt-2">
-                        {selectedTrainer.designation
-                          ? `${selectedTrainer.designation} associated with our active academic curriculum and student mentoring.`
-                          : 'Professional Educator specialized in advanced course instruction, batch supervision, and personalized trainer-student evaluations.'}
-                      </p>
-                    </div>
-
-                    {/* Bottom Action Footer inside Modal */}
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(selectedTrainer.email);
-                          toast.success('Trainer email copied to clipboard!');
-                        }}
-                        className="flex-1 px-4 py-2.5 bg-purple-50 text-purple-700 font-semibold rounded-xl hover:bg-purple-100 transition-all text-xs flex items-center justify-center gap-1.5"
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                        Copy Email
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowTrainerModal(false)}
-                        className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-md transition-all text-xs"
-                      >
-                        Close Profile
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+function BatchActionMenu({ batch, activeMenu, actionLoading, onMenu, onView, onEdit, onAssign, onDuplicate, onArchive, onDelete }: { batch: Batch } & BatchActionProps) {
+  const open = activeMenu === batch._id;
+  const busy = actionLoading === batch._id;
+  return (
+    <div className="relative flex items-center justify-end gap-2">
+      <button type="button" aria-label={`View ${batch.name}`} onClick={() => onView(batch)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-violet-100">
+        <Eye className="h-4 w-4" />
+      </button>
+      <button type="button" aria-label={`Edit ${batch.name}`} onClick={() => onEdit(batch)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-violet-100">
+        <Edit2 className="h-4 w-4" />
+      </button>
+      <button type="button" aria-label={`Open actions for ${batch.name}`} onClick={() => onMenu(open ? null : batch._id)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-violet-100">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-11 z-20 w-56 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+          <ActionItem label="View Batch" icon={Eye} onClick={() => onView(batch)} />
+          <ActionItem label="Edit Batch" icon={Edit2} onClick={() => onEdit(batch)} />
+          <ActionItem label="Assign Students" icon={UserPlus} onClick={() => onAssign(batch, 'assign')} />
+          <ActionItem label="Assign Trainer" icon={Users} onClick={() => onEdit(batch)} />
+          <ActionItem label="Duplicate" icon={Plus} onClick={() => onDuplicate(batch)} />
+          {batch.isActive !== false && <ActionItem label="Archive" icon={Archive} onClick={() => onArchive(batch)} />}
+          <ActionItem label="Delete" icon={Trash2} danger onClick={() => onDelete(batch)} />
         </div>
       )}
     </div>
   );
 }
 
-// ─── Stat Card Component ──────────────────────────────────────────────────────
-
-interface StatCardProps {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  color: 'blue' | 'green' | 'purple' | 'yellow' | 'red';
+function ActionItem({ label, icon: Icon, onClick, danger }: { label: string; icon: any; onClick: () => void; danger?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition ${danger ? 'text-rose-600 hover:bg-rose-50' : 'text-slate-700 hover:bg-slate-50'}`}>
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
 }
 
-function StatCard({ label, value, icon: Icon, color }: StatCardProps) {
-  const colorClasses = {
-    blue: 'bg-blue-500',
-    green: 'bg-green-500',
-    purple: 'bg-purple-500',
-    yellow: 'bg-yellow-500',
-    red: 'bg-red-500',
-  };
+function BatchAvatar({ batch }: { batch: Batch }) {
+  return <div className="flex h-11 w-11 items-center justify-center rounded-full bg-violet-50 text-sm font-bold text-violet-700">{initials(batch.name)}</div>;
+}
 
+function TrainerAvatar({ trainer }: { trainer: any }) {
+  const name = trainerName(trainer);
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 font-medium">{label}</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
+    <div className="flex items-center gap-2">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">{initials(name)}</span>
+      <span className="text-sm font-medium text-slate-700">{name}</span>
+    </div>
+  );
+}
+
+function DepartmentBadge({ value }: { value: string }) {
+  return <span className="inline-flex rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{value}</span>;
+}
+
+function StatusBadge({ status }: { status: Exclude<BatchStatus, 'all'> }) {
+  const tones = {
+    active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    archived: 'border-slate-200 bg-slate-100 text-slate-700',
+    draft: 'border-orange-200 bg-orange-50 text-orange-700',
+    completed: 'border-blue-200 bg-blue-50 text-blue-700',
+  };
+  const label = status[0].toUpperCase() + status.slice(1);
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${tones[status]}`}>{label}</span>;
+}
+
+function CapacityBar({ value }: { value: number }) {
+  const color = value >= 90 ? 'bg-rose-500' : value >= 70 ? 'bg-orange-500' : value >= 45 ? 'bg-amber-500' : 'bg-emerald-500';
+  return (
+    <div className="min-w-[120px]">
+      <div className="h-2 rounded-full bg-slate-100"><div className={`h-2 rounded-full ${color}`} style={{ width: `${value}%` }} /></div>
+      <p className="mt-1 text-xs font-semibold text-slate-600">{value}%</p>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return <div><p className="text-base font-bold text-slate-950">{value}</p><p className="text-[11px] font-medium text-slate-500">{label}</p></div>;
+}
+
+function BatchPagination({ page, totalPages, rowsPerPage, total, start, end, onPage, onRowsPerPage }: { page: number; totalPages: number; rowsPerPage: number; total: number; start: number; end: number; onPage: (page: number) => void; onRowsPerPage: (rows: number) => void }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <p className="text-sm text-slate-600">Showing <span className="font-semibold text-slate-900">{start}</span>-<span className="font-semibold text-slate-900">{end}</span> of <span className="font-semibold text-slate-900">{total}</span> batches</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={rowsPerPage} onChange={(event) => onRowsPerPage(Number(event.target.value))} className="h-9 rounded-lg border border-slate-200 px-2 text-sm text-slate-700">
+          {ROWS_PER_PAGE_OPTIONS.map((option) => <option key={option} value={option}>{option} rows</option>)}
+        </select>
+        <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)} className="h-9 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 disabled:opacity-40">&lt;</button>
+        {Array.from({ length: Math.min(totalPages, 3) }, (_, index) => index + 1).map((item) => <button key={item} type="button" onClick={() => onPage(item)} className={`h-9 w-9 rounded-lg text-sm font-bold ${page === item ? 'bg-violet-600 text-white' : 'border border-slate-200 text-slate-700'}`}>{item}</button>)}
+        <button type="button" disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="h-9 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 disabled:opacity-40">&gt;</button>
+      </div>
+    </div>
+  );
+}
+
+function QuickActions({ onCreate, onAssign }: { onCreate: () => void; onAssign: () => void }) {
+  const actions = [
+    { title: 'Create Batch', desc: 'Open a new learner cohort', icon: Plus, onClick: onCreate },
+    { title: 'Assign Trainer', desc: 'Attach a trainer to a batch', icon: Users, onClick: onCreate },
+    { title: 'Enroll Students', desc: 'Add learners to a batch', icon: UserPlus, onClick: onAssign },
+  ];
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-950">Quick Actions</h2>
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {actions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button key={action.title} type="button" onClick={action.onClick} className="flex items-center gap-3 rounded-lg border border-slate-200 p-4 text-left transition hover:border-violet-200 hover:bg-violet-50 focus:outline-none focus:ring-4 focus:ring-violet-100">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-700"><Icon className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-950">{action.title}</span><span className="block truncate text-xs text-slate-500">{action.desc}</span></span>
+              <ArrowRight className="h-4 w-4 text-slate-400" />
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function BatchEmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white px-5 py-14 text-center shadow-sm">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><BookOpen className="h-6 w-6" /></div>
+      <h2 className="mt-4 text-lg font-bold text-slate-950">No batches created</h2>
+      <p className="mt-2 text-sm text-slate-500">Create your first learner batch.</p>
+      <button type="button" onClick={onCreate} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-100"><Plus className="h-4 w-4" />Create Batch</button>
+    </section>
+  );
+}
+
+function BatchSkeleton() {
+  return (
+    <>
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-36" />)}</section>
+      <Skeleton className="h-28" />
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><div className="space-y-3">{[0, 1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-16" />)}</div></section>
+    </>
+  );
+}
+
+function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-slate-100 ${className}`} />;
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section className="rounded-lg border border-rose-200 bg-white px-5 py-10 text-center shadow-sm">
+      <h2 className="text-lg font-bold text-slate-950">Unable to load batches.</h2>
+      <p className="mt-2 text-sm text-slate-500">Please try again.</p>
+      <button type="button" onClick={onRetry} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-100"><RefreshCw className="h-4 w-4" />Retry</button>
+    </section>
+  );
+}
+
+function BatchFormModal({ editingBatch, formData, setFormData, departments, trainers, submitting, onClose, onSubmit }: { editingBatch: Batch | null; formData: BatchFormData; setFormData: React.Dispatch<React.SetStateAction<BatchFormData>>; departments: Department[]; trainers: any[]; submitting: boolean; onClose: () => void; onSubmit: (event: React.FormEvent) => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <form onSubmit={onSubmit} className="w-full max-w-2xl rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div><h2 className="text-lg font-bold text-slate-950">{editingBatch ? 'Edit Batch' : 'Create Batch'}</h2><p className="text-sm text-slate-500">Manage learner cohort details and trainer assignment.</p></div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
         </div>
-        <div
-          className={`w-12 h-12 ${colorClasses[color]} rounded-xl flex items-center justify-center`}
-        >
-          <Icon className="w-6 h-6 text-white" />
+        <div className="grid max-h-[70vh] gap-4 overflow-y-auto p-6 md:grid-cols-2">
+          <Input label="Batch Name" value={formData.name} onChange={(value) => setFormData((prev) => ({ ...prev, name: value }))} required />
+          <Input label="Batch Code" value={formData.code} onChange={(value) => setFormData((prev) => ({ ...prev, code: value.toUpperCase() }))} required />
+          <label className="text-sm font-medium text-slate-700">Department<select value={formData.department} onChange={(event) => setFormData((prev) => ({ ...prev, department: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100" required><option value="">Select Department</option>{departments.map((department) => <option key={department._id} value={department._id}>{department.name}</option>)}</select></label>
+          <Input label="Year" type="number" value={String(formData.year)} onChange={(value) => setFormData((prev) => ({ ...prev, year: Number(value) }))} required />
+          <Input label="Start Date" type="date" value={formData.startDate} onChange={(value) => setFormData((prev) => ({ ...prev, startDate: value }))} />
+          <Input label="End Date" type="date" value={formData.endDate} onChange={(value) => setFormData((prev) => ({ ...prev, endDate: value }))} />
+          <Input label="Capacity" type="number" value={String(formData.maxStudents)} onChange={(value) => setFormData((prev) => ({ ...prev, maxStudents: Number(value) }))} />
+          <label className="text-sm font-medium text-slate-700">Trainers<select multiple value={formData.trainers} onChange={(event) => setFormData((prev) => ({ ...prev, trainers: Array.from(event.target.selectedOptions).map((option) => option.value) }))} className="mt-1 min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100">{trainers.map((trainer) => <option key={trainer._id} value={trainer._id}>{trainerName(trainer)}</option>)}</select><span className="mt-1 block text-xs text-slate-500">Hold Ctrl to select multiple trainers.</span></label>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60">{submitting && <Loader2 className="h-4 w-4 animate-spin" />}{editingBatch ? 'Save Changes' : 'Create Batch'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Input({ label, value, onChange, type = 'text', required }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
+  return <label className="text-sm font-medium text-slate-700">{label}<input type={type} value={value} required={required} onChange={(event) => onChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100" /></label>;
+}
+
+function DeleteDialog({ batch, loading, onCancel, onConfirm }: { batch: Batch; loading: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <h2 className="text-lg font-bold text-slate-950">Delete batch?</h2>
+        <p className="mt-2 text-sm text-slate-600">This will delete <strong>{batch.name}</strong>. This action cannot be undone.</p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button type="button" onClick={onCancel} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60">{loading && <Loader2 className="h-4 w-4 animate-spin" />}Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BatchDetailsModal({ batch, students, loading, onClose, onAssign }: { batch: Batch; students: any[]; loading: boolean; onClose: () => void; onAssign: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div><h2 className="text-lg font-bold text-slate-950">{batch.name}</h2><p className="text-sm text-slate-500">{batch.code} - {batch.department?.name}</p></div>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="overflow-y-auto p-6">
+          {loading ? <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : students.length ? (
+            <div className="overflow-x-auto"><table className="min-w-[720px] w-full text-left"><thead className="bg-slate-50 text-xs font-bold uppercase text-slate-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Mobile</th><th className="px-4 py-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{students.map((student) => <tr key={student._id}><td className="px-4 py-3 font-medium text-slate-900">{student.name || `${student.firstName || ''} ${student.lastName || ''}`}</td><td className="px-4 py-3 text-sm text-slate-600">{student.email}</td><td className="px-4 py-3 text-sm text-slate-600">{student.mobile || student.phone || '-'}</td><td className="px-4 py-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700">Active</span></td></tr>)}</tbody></table></div>
+          ) : <div className="py-12 text-center text-sm text-slate-500">No students found in this batch.</div>}
+        </div>
+        <div className="flex justify-between border-t border-slate-200 px-6 py-4">
+          <p className="text-sm text-slate-600">Showing {students.length} learners</p>
+          <button type="button" onClick={onAssign} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Assign Students</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudentAssignmentModal(props: {
+  batch: Batch;
+  tab: StudentModalTab;
+  setTab: (tab: StudentModalTab) => void;
+  assignableStudents: BatchStudent[];
+  assignedStudents: BatchStudent[];
+  selectedStudentIds: string[];
+  selectedRemoveIds: string[];
+  setSelectedStudentIds: React.Dispatch<React.SetStateAction<string[]>>;
+  setSelectedRemoveIds: React.Dispatch<React.SetStateAction<string[]>>;
+  studentSearch: string;
+  assignedSearch: string;
+  setStudentSearch: (value: string) => void;
+  setAssignedSearch: (value: string) => void;
+  onlyUnassigned: boolean;
+  setOnlyUnassigned: (value: boolean) => void;
+  loadingAssignable: boolean;
+  loadingAssigned: boolean;
+  assigningStudents: boolean;
+  removingStudents: boolean;
+  onAssign: () => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  const list = props.tab === 'assign' ? props.assignableStudents : props.assignedStudents;
+  const selected = props.tab === 'assign' ? props.selectedStudentIds : props.selectedRemoveIds;
+  const setSelected = props.tab === 'assign' ? props.setSelectedStudentIds : props.setSelectedRemoveIds;
+  const loading = props.tab === 'assign' ? props.loadingAssignable : props.loadingAssigned;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <div><h2 className="text-lg font-bold text-slate-950">Assign Students</h2><p className="text-sm text-slate-500">{props.batch.name} - {props.batch.code}</p></div>
+          <button type="button" onClick={props.onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="border-b border-slate-200 px-6 py-3">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => props.setTab('assign')} className={`rounded-lg px-3 py-2 text-sm font-bold ${props.tab === 'assign' ? 'bg-violet-50 text-violet-700' : 'text-slate-600 hover:bg-slate-50'}`}>Assign Learners</button>
+            <button type="button" onClick={() => props.setTab('assigned')} className={`rounded-lg px-3 py-2 text-sm font-bold ${props.tab === 'assigned' ? 'bg-violet-50 text-violet-700' : 'text-slate-600 hover:bg-slate-50'}`}>Assigned Learners</button>
+          </div>
+        </div>
+        <div className="border-b border-slate-200 px-6 py-4">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input value={props.tab === 'assign' ? props.studentSearch : props.assignedSearch} onChange={(event) => props.tab === 'assign' ? props.setStudentSearch(event.target.value) : props.setAssignedSearch(event.target.value)} placeholder="Search learners..." className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-violet-300 focus:ring-4 focus:ring-violet-100" />
+          </label>
+          {props.tab === 'assign' && <label className="mt-3 flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={props.onlyUnassigned} onChange={(event) => props.setOnlyUnassigned(event.target.checked)} />Only unassigned learners</label>}
+        </div>
+        <div className="overflow-y-auto p-6">
+          {loading ? <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : list.length ? (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {list.map((student) => {
+                const checked = selected.includes(student._id);
+                return (
+                  <label key={student._id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${checked ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+                    <input type="checkbox" checked={checked} onChange={() => setSelected((prev) => prev.includes(student._id) ? prev.filter((id) => id !== student._id) : [...prev, student._id])} />
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">{initials(student.name || student.fullName || student.email)}</span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-900">{student.name || student.fullName || student.email}</span><span className="block truncate text-xs text-slate-500">{student.email}</span></span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : <div className="py-12 text-center text-sm text-slate-500">No learners found.</div>}
+        </div>
+        <div className="flex justify-between border-t border-slate-200 px-6 py-4">
+          <p className="text-sm text-slate-600">{selected.length} selected</p>
+          {props.tab === 'assign' ? <button type="button" onClick={props.onAssign} disabled={props.assigningStudents || !selected.length} className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-60">{props.assigningStudents && <Loader2 className="h-4 w-4 animate-spin" />}Assign Students</button> : <button type="button" onClick={props.onRemove} disabled={props.removingStudents || !selected.length} className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60">{props.removingStudents && <Loader2 className="h-4 w-4 animate-spin" />}Remove from Batch</button>}
         </div>
       </div>
     </div>

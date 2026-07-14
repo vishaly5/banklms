@@ -1,5 +1,5 @@
 import { StatCard } from './StatCard';
-import { Users, BookOpen, CheckCircle2, GraduationCap, Award, Clock, TrendingUp, Target, Loader2, Play, Star, BarChart3, ChevronRight, Flame, Hourglass, Trophy, UserPlus, Plus, FileText, ArrowUpRight, LayoutGrid } from 'lucide-react';
+import { Users, BookOpen, CheckCircle2, GraduationCap, Award, Clock, TrendingUp, Target, Loader2, Play, Star, BarChart3, ChevronRight, Flame, Hourglass, Trophy, UserPlus, Plus, FileText, ArrowUpRight, LayoutGrid, MessageCircle } from 'lucide-react';
 import { FilterBar } from './FilterBar';
 import { useState, useEffect } from 'react';
 import { getStudentDashboard, getCourses, getLearningStats } from '../services/courseService';
@@ -11,7 +11,7 @@ import { TrainerDashboard } from './dashboard/trainer/TrainerDashboard';
 interface DashboardProps {
   userRole: 'admin' | 'trainer' | 'participant';
   onOpenAdminUsers?: () => void;
-  onOpenTrainerDetail?: (detailPage: 'courses' | 'reports') => void;
+  onOpenTrainerDetail?: (detailPage: 'courses' | 'batches') => void;
   onNavigate?: (page: string) => void;
   currentUser?: { name?: string; avatar?: string; role?: string; email?: string };
 }
@@ -158,7 +158,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
   const td = trainerDashboardData;
   const trainerStats = [
     { detailPage: 'courses' as const, label: 'My Courses', value: loadingTrainerDashboard ? '—' : String(td?.summary?.totalCourses || 0), icon: BookOpen, color: 'blue' as const, trend: '' },
-    { detailPage: 'reports' as const, label: 'Active Batches', value: '5', icon: GraduationCap, color: 'yellow' as const, trend: '' },
+    { detailPage: 'batches' as const, label: 'Active Batches', value: '5', icon: GraduationCap, color: 'yellow' as const, trend: '' },
   ];
 
   const s = studentData?.stats;
@@ -540,7 +540,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                   else if (card.label === 'Total Courses') onNavigate?.('courses');
                   else if (card.label === 'Enrollments') onNavigate?.('student-management');
                   else if (card.label === 'Completed') onNavigate?.('courses');
-                  else if (card.label === 'Certificates') onNavigate?.('reports');
+                  else if (card.label === 'Certificates') onNavigate?.('certificate-management');
                 }}
                 className="relative group rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 cursor-pointer overflow-hidden text-left"
                 style={{
@@ -604,7 +604,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
               ['Add Users', UserPlus, 'bulk-import', 'border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/20', '#6366f1', 'Bulk CSV Import & Sync'],
               ['Create Course', Plus, 'courses', 'border-blue-100 hover:border-blue-300 hover:bg-blue-50/20', '#3b82f6', 'Author modules & sections'],
               ['New Batch', GraduationCap, 'batches', 'border-green-100 hover:border-green-300 hover:bg-green-50/20', '#10b981', 'Cohort assignments'],
-              ['View Reports', BarChart3, 'reports', 'border-purple-100 hover:border-purple-300 hover:bg-purple-50/20', '#8b5cf6', 'Growth & query stats'],
+              ['Community Forum', MessageCircle, 'forum', 'border-purple-100 hover:border-purple-300 hover:bg-purple-50/20', '#8b5cf6', 'Learner discussions'],
             ].map(([label, Icon, target, hoverStyle, iconColor, desc]) => (
               <button
                 key={label as string}
@@ -817,7 +817,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                 Recent Ratings & Reviews
               </h3>
               <button
-                onClick={() => onNavigate?.('reports')}
+                onClick={() => onNavigate?.('analytics')}
                 className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-150 transition-colors"
               >
                 View All Reviews
@@ -861,7 +861,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
           {[
             ['Approve Users', String(ad?.users?.pendingApprovals || 0), 'pending approvals', '#8b5cf6', 'from-violet-500/10 to-transparent', 'user-management'],
             ['Manage Courses', String(ad?.courses?.published || 0), 'active courses', '#3b82f6', 'from-blue-500/10 to-transparent', 'courses'],
-            ['View Reports', String(ad?.queries?.total || 0), 'system queries', '#10b981', 'from-emerald-500/10 to-transparent', 'reports'],
+            ['Student Query', String(ad?.queries?.total || 0), 'system queries', '#10b981', 'from-emerald-500/10 to-transparent', 'qms'],
             ['Certificates Issued', String(ad?.certificates?.total || 0), 'total credentials', '#db2777', 'from-pink-500/10 to-transparent', 'certificates'],
           ].map((x, index) => (
             <div
@@ -1027,7 +1027,7 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
               <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
                 <BarChart3 className="w-5 h-5" />
               </div>
-              <span className="text-xs font-medium text-gray-700">View Reports</span>
+              <span className="text-xs font-medium text-gray-700">Advanced Analytics</span>
             </button>
           </div>
         </div>
@@ -1127,9 +1127,9 @@ export function Dashboard({ userRole, onOpenAdminUsers, onOpenTrainerDetail, onN
                 <p className="font-medium text-gray-900 text-sm">Manage Courses</p>
                 <p className="text-xs text-gray-500 mt-1">{ad?.courses?.published || 0} active</p>
               </button>
-              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('reports')}>
-                <BarChart3 className="w-6 h-6 mx-auto mb-2 text-gray-600" />
-                <p className="font-medium text-gray-900 text-sm">View Reports</p>
+              <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('qms')}>
+                <MessageCircle className="w-6 h-6 mx-auto mb-2 text-gray-600" />
+                <p className="font-medium text-gray-900 text-sm">Student Query</p>
                 <p className="text-xs text-gray-500 mt-1">{ad?.queries?.total || 0} queries</p>
               </button>
               <button className="p-4 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all text-center" onClick={() => onNavigate?.('certificates')}>

@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  Bot,
   Sparkles,
   Target,
   IndianRupee,
@@ -42,7 +41,6 @@ import { VoiceInputField } from './VoiceInputField';
 import { RichTextEditor } from './RichTextEditor';
 import { SUPPORTED_LANGUAGES, voiceInputService } from '../../services/voiceInputService';
 import { createCourse, saveCourseLesson, submitCourseForReview, updateCourse } from '../../services/courseService';
-import { getVideoSummary, regenerateVideoSummary } from '../../services/aiLessonNoteService';
 import { uploadFile } from '../../services/mediaService';
 import { buildLessonAssetPatch, toAbsoluteAssetUrl } from '../../utils/fileUrl';
 import { getDepartments, type Department } from '../../services/departmentService';
@@ -99,9 +97,8 @@ const mapSavedCourseToFormData = (d: any): CourseFormData => {
         content: les.content || '',
         description: les.description || '',
         videoDescription: les.videoDescription || les.description || '',
-        transcript: transcriptText(les.transcript || les.videoSummary?.transcript || les.videoSummary?.rawTranscript),
+        transcript: transcriptText(les.transcript || les.manualTranscript || ''),
         manualTranscript: les.manualTranscript || '',
-        generatedTranscript: les.generatedTranscript || les.videoSummary?.generated?.transcript || les.videoSummary?.rawTranscript || '',
         summary: les.summary || '',
         notes: les.notes || '',
         videoUrl: les.videoUrl || '',
@@ -201,7 +198,6 @@ interface CourseLesson {
   overview?: string;
   transcript: string;
   manualTranscript?: string;
-  generatedTranscript?: string;
   summary: string;
   notes?: string;
   videoUrl: string;
@@ -347,7 +343,6 @@ const freshLesson = (overrides: Partial<CourseLesson> = {}): CourseLesson => ({
   videoDescription: '',
   transcript: '',
   manualTranscript: '',
-  generatedTranscript: '',
   summary: '',
   notes: '',
   videoUrl: '',
@@ -390,7 +385,6 @@ const lessonPayload = (lesson: CourseLesson, order: number) => ({
   mediaAssets: Array.isArray(lesson.mediaAssets) ? lesson.mediaAssets : [],
   transcript: lesson.transcript || '',
   manualTranscript: lesson.manualTranscript || '',
-  generatedTranscript: lesson.generatedTranscript || '',
   videoDescription: lesson.videoDescription || '',
   summary: lesson.summary || '',
   notes: lesson.notes || '',
@@ -892,7 +886,6 @@ export function CreateCourse({ userRole, onBack, onPublished, initialData, initi
                 videoDescription: savedLesson.videoDescription ?? currentLesson.videoDescription,
                 transcript: transcriptText(savedLesson.transcript ?? currentLesson.transcript),
                 manualTranscript: savedLesson.manualTranscript ?? currentLesson.manualTranscript,
-                generatedTranscript: savedLesson.generatedTranscript ?? currentLesson.generatedTranscript,
                 summary: savedLesson.summary ?? currentLesson.summary,
                 notes: savedLesson.notes ?? currentLesson.notes,
                 videoUrl: savedLesson.videoUrl ?? currentLesson.videoUrl,
@@ -2270,17 +2263,6 @@ export function CreateCourse({ userRole, onBack, onPublished, initialData, initi
         )}
       </div>
       </div>
-      <div className="fixed bottom-6 right-6 z-40">
-        <button className="group flex items-center gap-3 rounded-full border border-slate-800/10 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-950 px-4 py-3 text-white shadow-[0_20px_45px_rgba(15,23,42,0.28)] transition-all hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(15,23,42,0.34)]">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 text-white shadow-[0_12px_24px_rgba(16,185,129,0.25)]">
-            <Bot className="h-5 w-5" />
-          </span>
-          <span className="hidden text-left leading-tight sm:block">
-            <span className="block text-sm font-semibold">AI Assistant</span>
-            <span className="block text-xs text-slate-300">Open chatbot</span>
-          </span>
-        </button>
-      </div>
     </div>
   );
 }
@@ -2305,50 +2287,6 @@ function SectionCard({
         <h3 className="text-sm font-bold tracking-tight text-slate-900 md:text-[0.95rem]">{title}</h3>
       </div>
       <div className="p-6">{children}</div>
-    </div>
-  );
-}
-
-function AIProgressLoader({
-  status,
-  progress,
-  message,
-  error,
-}: {
-  status: string;
-  progress: number;
-  message: string;
-  error?: string;
-}) {
-  const safeProgress = Math.max(0, Math.min(100, Math.round(progress || 0)));
-  const isFailed = status === 'failed' || status === 'transcript_failed';
-  const isCompleted = status === 'completed';
-
-  return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2">
-          <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full ${
-            isFailed ? 'bg-rose-100 text-rose-700' : isCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
-          }`}>
-            {isFailed ? <AlertCircle className="h-3.5 w-3.5" /> : isCompleted ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          </span>
-          <div>
-            <p className="text-xs font-semibold text-slate-900">
-              {isFailed ? 'AI generation failed' : isCompleted ? 'AI generation completed' : 'Generating AI content'}
-            </p>
-            <p className="mt-0.5 text-xs text-slate-500">{message || 'Please wait while AI processes your video.'}</p>
-          </div>
-        </div>
-        <span className="text-sm font-bold text-slate-900">{safeProgress}%</span>
-      </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${isFailed ? 'bg-rose-500' : isCompleted ? 'bg-emerald-500' : 'bg-indigo-600'}`}
-          style={{ width: `${safeProgress}%` }}
-        />
-      </div>
-      {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
     </div>
   );
 }
@@ -2459,17 +2397,6 @@ function LessonRow({
   const [uploading, setUploading] = useState<'image' | 'audio' | 'video' | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isSavingLesson, setIsSavingLesson] = useState(false);
-  const [isGeneratingTranscript, setIsGeneratingTranscript] = useState(false);
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  const [languageHint, setLanguageHint] = useState<string>('auto');
-  const asrMode = 'Riva';
-  const [aiJobProgress, setAiJobProgress] = useState<{
-    target: 'transcript' | 'summary' | null;
-    status: string;
-    progress: number;
-    message: string;
-    error: string;
-  }>({ target: null, status: 'not_started', progress: 0, message: '', error: '' });
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const LIcon = LESSON_ICONS[lesson.type];
@@ -2550,19 +2477,11 @@ function LessonRow({
               onUpdate({ 
                 ...buildLessonAssetPatch(res.data, 'video'),
                 videoDuration: detectedSeconds > 0 ? formatSecondsToDuration(detectedSeconds) : (lesson.videoDuration || ''),
-                ...(res.data.transcript ? { transcript: res.data.transcript } : {}),
                 videoSummary: {
                   ...(lesson.videoSummary || {}),
-                  status: res.data.transcript ? 'transcript_completed' : 'uploaded',
-                  generated: {
-                    ...(lesson.videoSummary?.generated || {}),
-                    ...(res.data.transcript ? { transcript: res.data.transcript, rawTranscript: res.data.transcript } : {}),
-                  },
+                  status: 'uploaded',
                 },
               });
-              if (res.data.transcriptStatus === 'pending' || res.data.transcriptStatus === 'processing') {
-                toast.info('Transcript auto-generation started for this video.');
-              }
             }
             toast.success(`${kind.charAt(0).toUpperCase() + kind.slice(1)} uploaded successfully`);
           } catch (patchErr) {
@@ -2629,19 +2548,11 @@ function LessonRow({
                 onUpdate({ 
                   ...buildLessonAssetPatch(res.data, 'video'),
                   videoDuration: detectedSeconds > 0 ? formatSecondsToDuration(detectedSeconds) : (lesson.videoDuration || ''),
-                  ...(res.data.transcript ? { transcript: res.data.transcript } : {}),
                   videoSummary: {
                     ...(lesson.videoSummary || {}),
-                    status: res.data.transcript ? 'transcript_completed' : 'uploaded',
-                    generated: {
-                      ...(lesson.videoSummary?.generated || {}),
-                      ...(res.data.transcript ? { transcript: res.data.transcript, rawTranscript: res.data.transcript } : {}),
-                    },
+                    status: 'uploaded',
                   },
                 });
-                if (res.data.transcriptStatus === 'pending' || res.data.transcriptStatus === 'processing') {
-                  toast.info('Transcript auto-generation started for this video.');
-                }
               }
               toast.success(`Recorded ${kind} uploaded successfully`);
             } catch (patchErr) {
@@ -2678,210 +2589,6 @@ function LessonRow({
     || lesson.videoAsset?.viewUrl
     || ''
   );
-
-  const textToEditorHtml = (text = '') => {
-    const escaped = String(text || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    const blocks = escaped
-      .split(/\n{2,}/)
-      .map((block) => block.trim().replace(/\n/g, '<br />'))
-      .filter(Boolean);
-
-    return blocks.length ? blocks.map((block) => `<p>${block}</p>`).join('') : '';
-  };
-
-  const pollVideoAiJob = async (
-    target: 'transcript' | 'summary',
-    activeCourseId: string,
-    activeSectionId: string,
-    activeLessonId: string
-  ) => {
-    let latest: any = null;
-    for (let attempt = 0; attempt < 150; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const status = await getVideoSummary(activeCourseId, activeSectionId, activeLessonId, 'short');
-      latest = status.data || null;
-      const progress = Math.max(0, Math.min(100, Number(latest?.progress ?? latest?.aiProcessingProgress ?? 0)));
-      const nextStatus = latest?.status || 'processing';
-
-      setAiJobProgress({
-        target,
-        status: nextStatus,
-        progress,
-        message: latest?.message || latest?.stage || 'Generating AI content...',
-        error: latest?.warning || latest?.error || latest?.aiProcessingError || '',
-      });
-
-      if (nextStatus === 'failed' || nextStatus === 'transcript_failed') {
-        if (latest?.transcript || latest?.rawTranscript) return latest;
-        throw new Error(latest?.warning || latest?.error || latest?.aiProcessingError || 'AI generation failed');
-      }
-      if (nextStatus === 'completed' || nextStatus === 'transcript_completed' || nextStatus === 'summary_completed') return latest;
-    }
-    return latest;
-  };
-
-  const getTranscriptButtonLabel = () => {
-    if (isGeneratingTranscript) {
-      if (aiJobProgress.target === 'transcript') {
-        if (aiJobProgress.status === 'saving_draft') return 'Saving draft...';
-        if (aiJobProgress.status === 'queued') return 'Starting transcript...';
-      }
-      return 'Generating transcript...';
-    }
-    
-    // Check if not saved
-    const isUnsaved = !courseId || !sectionId || !lesson.id || sectionId.startsWith('sec-') || lesson.id.startsWith('les-') || !isNaN(Number(sectionId)) || !isNaN(Number(lesson.id));
-    if (isUnsaved) {
-      return 'Save & Generate Transcript';
-    }
-    
-    return 'Generate AI Transcript';
-  };
-
-  const isTranscriptButtonDisabled = () => {
-    if (isGeneratingTranscript) return true;
-    if (uploading === 'video') return true;
-    if (!getLessonVideoSource()) return true;
-    return false;
-  };
-
-  const startVideoAiJob = async (target: 'transcript' | 'summary') => {
-    const videoSource = getLessonVideoSource();
-    if (!videoSource) {
-      toast.error(target === 'transcript' ? 'Please upload a lesson video before generating transcript.' : 'Please upload or add a video before generating summary.');
-      return;
-    }
-
-    if (uploading === 'video') {
-      toast.info('Please wait, video is still uploading.');
-      return;
-    }
-
-    if (target === 'transcript') setIsGeneratingTranscript(true);
-    if (target === 'summary') setIsGeneratingSummary(true);
-    setAiJobProgress({
-      target,
-      status: 'queued',
-      progress: 0,
-      message: target === 'transcript' ? 'Starting Riva English transcript...' : 'Starting AI summary...',
-      error: '',
-    });
-
-    try {
-      let activeCourseId = courseId;
-      let activeSectionId = sectionId;
-      let activeLessonId = lesson.id;
-
-      const isUnsaved = !activeCourseId || !activeSectionId || !activeLessonId || activeSectionId.startsWith('sec-') || activeLessonId.startsWith('les-') || !isNaN(Number(activeSectionId)) || !isNaN(Number(activeLessonId));
-      if (isUnsaved) {
-        if (target === 'transcript') {
-          setAiJobProgress((prev) => ({ ...prev, status: 'saving_draft', message: 'Saving course draft before transcript generation...' }));
-          toast.info('Saving course draft before transcript generation...');
-        }
-        
-        try {
-          const ids = await onSaveLesson(sectionId, lesson.id);
-          activeCourseId = ids.courseId;
-          activeSectionId = ids.sectionId;
-          activeLessonId = ids.lessonId;
-          toast.success(`Course draft saved. Starting ${target === 'transcript' ? 'Riva English transcript' : 'summary'} generation...`);
-        } catch (saveErr: any) {
-          console.error('[AI TRANSCRIPT] Auto-save failed:', saveErr);
-          throw new Error('COURSE_SAVE_FAILED');
-        }
-      }
-
-      setAiJobProgress({
-        target,
-        status: 'queued',
-        progress: 0,
-        message: 'Starting AI job...',
-        error: '',
-      });
-
-      const queued = await regenerateVideoSummary({
-        courseId: activeCourseId!,
-        sectionId: activeSectionId,
-        lessonId: activeLessonId,
-        summaryType: 'short',
-        forceRegenerate: true,
-        languageHint,
-        asrMode,
-        onlyTranscript: target === 'transcript',
-        persist: true,
-        previewOnly: false,
-      });
-
-      if (queued.success && (queued.status === 'pending' || queued.status === 'queued' || queued.status === 'processing' || queued.message?.includes('already running'))) {
-        toast.info('Transcript generation is already running for this lesson.');
-      } else if (!queued.success) {
-        if (queued.code === 'LESSON_NOT_SAVED') {
-          throw new Error('LESSON_ID_NOT_FOUND_AFTER_SAVE');
-        }
-        toast.error(queued.message || 'AI generation failed');
-        return;
-      }
-
-      toast.info(target === 'transcript' ? 'Generating Riva English transcript...' : 'Generating summary...');
-      const completed = queued.data?.status === 'completed' ? queued.data : await pollVideoAiJob(target, activeCourseId!, activeSectionId, activeLessonId);
-      const latestTranscript = completed?.finalTranscript || completed?.transcript || completed?.rawTranscript || '';
-      const generatedSummary = completed?.summary || completed?.generated?.summary || completed?.generated?.detailedSummary || '';
-
-      if (target === 'transcript' && latestTranscript) {
-        onUpdate({
-          transcript: latestTranscript,
-          generatedTranscript: latestTranscript,
-          videoSummary: {
-            ...(lesson.videoSummary || {}),
-            status: 'transcript_completed',
-            generated: {
-              ...(lesson.videoSummary?.generated || {}),
-              transcript: latestTranscript,
-              rawTranscript: latestTranscript,
-            },
-            updatedAt: new Date().toISOString(),
-          },
-        });
-        if (completed?.status === 'failed' || completed?.status === 'transcript_failed') {
-          toast.warning(completed?.warning || completed?.error || 'Transcript generated, but summary could not be created from it.');
-        } else {
-          toast.success('Transcript generated');
-        }
-      } else if (target === 'summary' && generatedSummary) {
-        onUpdate({ summary: textToEditorHtml(generatedSummary) });
-        toast.success('Summary generated');
-      } else {
-        const message = completed?.warning || completed?.error || 'AI generation is still running. Check again after a moment.';
-        if (completed?.status === 'failed' || completed?.status === 'transcript_failed') toast.error(message);
-        else toast.info(message);
-      }
-    } catch (err: any) {
-      console.error('[AI JOB ERROR]', err);
-      let message = err?.response?.data?.message || err?.message || 'AI generation failed';
-      if (err.message === 'COURSE_SAVE_FAILED') {
-        message = 'Could not save the course draft. Please fix required fields and try again.';
-      } else if (err.message === 'LESSON_ID_NOT_FOUND_AFTER_SAVE') {
-        message = 'Course saved, but lesson ID was not found. Please refresh and try again.';
-      }
-      setAiJobProgress((prev) => ({ ...prev, status: 'failed', error: message, message }));
-      toast.error(message);
-    } finally {
-      if (target === 'transcript') setIsGeneratingTranscript(false);
-      if (target === 'summary') setIsGeneratingSummary(false);
-    }
-  };
-
-  const handleGenerateTranscript = async () => {
-    await startVideoAiJob('transcript');
-  };
-
-  const handleGenerateSummary = async () => {
-    await startVideoAiJob('summary');
-  };
 
   const handleSaveLesson = async () => {
     setIsSavingLesson(true);
@@ -2946,20 +2653,6 @@ function LessonRow({
           {isSavingLesson ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
           Save Lesson
         </button>
-        {lesson.type === 'video' && getLessonVideoSource() && (
-          <button
-            type="button"
-            onClick={handleGenerateTranscript}
-            disabled={isTranscriptButtonDisabled()}
-            className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 transition-colors hover:bg-violet-100 disabled:opacity-60"
-          >
-            {isGeneratingTranscript ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            Transcript
-          </button>
-        )}
-        <span className="hidden rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 sm:inline-flex">
-          {(lesson.videoSummary?.status || 'idle').replace(/_/g, ' ')}
-        </span>
         <button
           type="button"
           onClick={onRemove}
@@ -3219,64 +2912,18 @@ function LessonRow({
 
           {lesson.type === 'video' && (
             <div>
-              <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/50 p-2.5">
-                <div className="flex flex-1 min-w-[120px] flex-col gap-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Riva Language Hint</label>
-                  <select
-                    value={languageHint}
-                    onChange={(e) => setLanguageHint(e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  >
-                    <option value="auto">Auto Detect Language</option>
-                    <option value="hi">Hindi (à¤¹à¤¿à¤¨à¥à¤¦à¥€)</option>
-                    <option value="en">English (English)</option>
-                    <option value="hinglish">Hinglish (Hindi+English)</option>
-                    <option value="bn">Bengali (à¦¬à¦¾à¦‚à¦²à¦¾)</option>
-                    <option value="te">Telugu (à°¤à±†à°²à±à°—à±)</option>
-                    <option value="mr">Marathi (à¤®à¤°à¤¾à¤ à¥€)</option>
-                    <option value="ta">Tamil (à®¤à®®à®¿à®´à¯)</option>
-                    <option value="gu">Gujarati (àª—à«àªœàª°àª¾àª¤à«€)</option>
-                    <option value="kn">Kannada (à²•à²¨à³à²¨à²¡)</option>
-                    <option value="ml">Malayalam (à´®à´²à´¯à´¾à´³à´‚)</option>
-                    <option value="or">Odia (à¬“à¬¡à¬¼à¬¿à¬†)</option>
-                    <option value="pa">Punjabi (à¨ªà©°à¨œà¨¾à¨¬à©€)</option>
-                    <option value="ur">Urdu (Ø§Ø±Ø¯Ùˆ)</option>
-                    <option value="as">Assamese (à¦…à¦¸à¦®à§€à¦¯à¦¼à¦¾)</option>
-                  </select>
-                  <p className="text-[10px] font-medium text-slate-500">Transcript will be generated with Riva and saved in English by default.</p>
-                </div>
-              </div>
               <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                 <label className="block text-xs font-semibold text-gray-700">
                   Transcript
                 </label>
-                <button
-                  type="button"
-                  onClick={handleGenerateTranscript}
-                  disabled={isTranscriptButtonDisabled()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200/70 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition-all hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isGeneratingTranscript ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {getTranscriptButtonLabel()}
-                </button>
               </div>
               <textarea
                 value={lesson.transcript || ''}
                 onChange={(e) => onUpdate({ transcript: e.target.value, manualTranscript: e.target.value })}
-                placeholder="Paste, edit, or generate the transcript for this lesson."
+                placeholder="Paste or edit the transcript for this lesson."
                 rows={5}
                 className="w-full rounded-xl border border-slate-200/80 bg-white px-3 py-2 text-sm leading-6 outline-none transition-all focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100"
               />
-              {aiJobProgress.target === 'transcript' && (
-                <div className="mt-3">
-                  <AIProgressLoader
-                    status={aiJobProgress.status}
-                    progress={aiJobProgress.progress}
-                    message={aiJobProgress.message}
-                    error={aiJobProgress.error}
-                  />
-                </div>
-              )}
             </div>
           )}
 
@@ -3304,20 +2951,12 @@ function LessonRow({
             <RichTextEditor
               value={lesson.summary || ''}
               onChange={(v) => onUpdate({ summary: v })}
-              placeholder="Add or generate a concise summary for this lesson."
+              placeholder="Add a concise summary for this lesson."
               height={180}
               lang={globalLang}
               showTranslate={globalLang !== 'en'}
               translateTargetLang="en"
             />
-            {aiJobProgress.target === 'summary' && (
-              <AIProgressLoader
-                status={aiJobProgress.status}
-                progress={aiJobProgress.progress}
-                message={aiJobProgress.message}
-                error={aiJobProgress.error}
-              />
-            )}
           </div>
 
           {/* Resources */}

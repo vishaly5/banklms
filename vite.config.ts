@@ -32,7 +32,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, 'index.html'),
-        chatbot: path.resolve(__dirname, 'chatbot/index.html'),
       },
     },
   },

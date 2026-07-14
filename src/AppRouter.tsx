@@ -6,18 +6,28 @@ import { CertificateVerification } from './app/components/CertificateVerificatio
 // Protected Route Component
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
   const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = safeParseStoredUser();
 
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    // Redirect to appropriate dashboard based on role
-    return <Navigate to="/dashboard" replace />;
+  if (allowedRoles.length > 0 && user.role && !allowedRoles.includes(user.role)) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
+}
+
+function safeParseStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}');
+  } catch {
+    localStorage.removeItem('user');
+    return {};
+  }
 }
 
 // Home: skip the marketing landing page; send guests to login and sessions to dashboard.
@@ -49,7 +59,7 @@ export default function AppRouter() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['administrator', 'trainer', 'student']}>
+            <ProtectedRoute allowedRoles={['administrator', 'admin', 'trainer', 'student', 'participant']}>
               <App />
             </ProtectedRoute>
           }

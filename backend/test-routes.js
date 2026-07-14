@@ -11,7 +11,6 @@ const routes = [
   { name: 'certificate', path: './src/routes/certificate.routes.js' },
   { name: 'dashboard', path: './src/routes/dashboard.routes.js' },
   { name: 'qms', path: './src/routes/qms.routes.js' },
-  { name: 'report', path: './src/routes/report.routes.js' },
   { name: 'notification', path: './src/routes/notification.routes.js' }
 ];
 
